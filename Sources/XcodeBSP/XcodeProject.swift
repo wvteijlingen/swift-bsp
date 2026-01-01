@@ -1,10 +1,8 @@
 import BuildServerProtocol
-import Command
 import Foundation
 import LanguageServerProtocol
 import Path
 import SwiftBuild
-import XcodeProj
 
 typealias AbsolutePath = Path.AbsolutePath
 
@@ -20,7 +18,6 @@ actor XcodeProject {
     private let projectRoot: AbsolutePath
     private let projectFilePath: AbsolutePath
     private let arena: SWBArenaInfo
-    private let xcodeProj: XcodeProj
     private let logger: (BuildServerProtocol.MessageType, String, BuildServerProtocol.StructuredLogKind?) -> Void
     private let buildServiceSession: SWBBuildServiceSession
     private var buildRequest: SWBBuildRequest {
@@ -60,7 +57,6 @@ actor XcodeProject {
         self.projectRoot = projectRoot
         self.projectFilePath = projectRoot.appending(component: projectFileName)
         self.arena = SWBArenaInfo(root: xcodeBspFolder.appending(component: "arena"), indexEnableDataStore: true)
-        self.xcodeProj = try XcodeProj(pathString: projectFilePath.pathString)
         self.logger = logger
 
         self.buildServiceSession = try await service.createSession(
@@ -146,7 +142,6 @@ actor XcodeProject {
     }
 
     func loadBuildSources(targetIdentifiers: [BuildTargetIdentifier]) async throws -> [SourcesItem] {
-        logger(.info, "XcodeProject.loadBuildSources: start...", nil)
 
         let configuredTargetIdentifiers = targetIdentifiers.map(\.configuredTargetIdentifier)
 
@@ -178,27 +173,6 @@ actor XcodeProject {
             )
         }
     }
-
-    //    func buildAllTargets() async throws {
-    //        guard let scheme = xcodeProj.allSchemes.first else {
-    //            throw BuildServerError.schemeNotFound
-    //        }
-    //
-    //        let arguments = [
-    //            "/usr/bin/xcrun",
-    //            "xcodebuild",
-    //            "-scheme", scheme.name,
-    //            "-derivedDataPath", arena.derivedDataPath.pathString,
-    //            "CODE_SIGN_IDENTITY=\"\"",
-    //            "CODE_SIGNING_REQUIRED=NO"
-    //        ]
-    //
-    //        logger.("Building Xcode Project: \(arguments)")
-    //
-    //        let output = try await Command.run(arguments: arguments, workingDirectory: projectRoot).concatenatedString()
-    //
-    //        logger.("Finished building: \(output)")
-    //    }
 
     func loadCompilerArguments(file: AbsolutePath, targetIdentifier: BuildTargetIdentifier) async throws -> [String] {
         try await buildServiceSession.indexCompilerArguments(
@@ -277,92 +251,6 @@ actor XcodeProject {
         print("done")
 
     }
-
-    // func schemes() throws -> [BuildTarget] {
-    //     logger(.info, "Getting schemes")
-
-    //     return xcodeProj.allSchemes.map { scheme in
-    //         logger(.info, "Found scheme '\(scheme.name)'")
-
-    //         let capabilities = BuildTargetCapabilities(
-    //             canCompile: scheme.buildAction != nil,
-    //             canTest: scheme.testAction != nil,
-    //             canRun: scheme.launchAction != nil,
-    //             canDebug: scheme.launchAction != nil
-    //         )
-
-    //         return BuildTarget(
-    //             id: BuildTargetIdentifier(uri: scheme.uri),
-    //             displayName: scheme.name,
-    //             baseDirectory: nil,
-    //             tags: [],
-    //             capabilities: capabilities,
-    //             languageIds: [.swift],
-    //             dependencies: [],
-    //             dataKind: .sourceKit,
-    //             data: nil
-    //         )
-    //     }
-    // }
-
-    // func sourceFiles(forScheme uri: URI) async throws -> [SourceItem] {
-    //     logger(.info, "Getting source files for scheme '\(uri)'")
-
-    //     let scheme = xcodeProj.allSchemes.first { $0.uri == uri }
-
-    //     guard let buildAction = scheme?.buildAction else {
-    //         throw BuildServerError.noTargetsFound
-    //     }
-
-    //     let targets = buildAction.buildActionEntries.flatMap { entry in
-    //         xcodeProj.pbxproj.targets(named: entry.buildableReference.blueprintName)
-    //     }
-
-    //     guard !targets.isEmpty else {
-    //         logger(.warning, "Zero targets found for scheme '\(uri)'")
-    //         return []
-    //     }
-
-    //     logger(.info, "Found \(targets.count) target(s) for scheme '\(uri)'")
-
-    //     return try targets.flatMap { target in
-    //         let sourceFiles = try target.sourceFiles()
-    //         logger(.info, "Found \(sourceFiles.count) source files for target '\(target.name)'")
-
-    //         return try sourceFiles.map { fileElement in
-    //             guard let path = try fileElement.fullPath(sourceRoot: projectRoot.pathString) else {
-    //                 logger(.warning, "No path for file '\(fileElement.path, default: "???")'")
-    //                 throw BuildServerError.unknown
-    //             }
-
-    //             return SourceItem(
-    //                 uri: URI(filePath: path, isDirectory: false),
-    //                 kind: .file,
-    //                 generated: false
-    //             )
-    //         }
-    //     }
-    // }
-
-    //    func sourceFiles(forTargetNamed target: String) async throws -> [SourceItem] {
-    //        let xcodeProject = try XcodeProj(pathString: projectRoot)
-    //        let eligibleTargets = xcodeProject.pbxproj.targets(named: target)
-    //
-    //        if eligibleTargets.isEmpty {
-    //            logger.warning("Zero targets found with name \(target)")
-    //            throw BuildServerError.noTargetsFound
-    //        } else if eligibleTargets.count > 1 {
-    //            logger.warning("More than one target found with name \(target). Using first target")
-    //        }
-    //
-    //        return try eligibleTargets[0].sourceFiles().map { fileElement in
-    //            guard let path = try fileElement.fullPath(sourceRoot: Path(projectRoot)) else {
-    //                fatalError("No path")
-    //            }
-    //
-    //            return path.url
-    //        }
-    //    }
 }
 
 // MARK: - SWBPlanningOperationDelegate, SWBIndexingDelegate

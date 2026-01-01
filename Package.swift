@@ -13,11 +13,10 @@ let package = Package(
     dependencies: [
         .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.2.0"),
         .package(url: "https://github.com/swiftlang/swift-tools-protocols.git", from: "0.0.9"),
-        .package(url: "https://github.com/tuist/Command.git", from: "0.13.0"),
-        .package(url: "https://github.com/tuist/xcodeproj.git", from: "9.6.0"),
         .package(
             url: "https://github.com/swiftlang/swift-build.git",
-            revision: "7737a7666ca94d191f33ce3d029f38d97196b50b"),
+            revision: "7737a7666ca94d191f33ce3d029f38d97196b50b"
+        ),
         .package(url: "https://github.com/apple/swift-log", from: "1.6.0"),
     ],
     targets: [
@@ -27,8 +26,6 @@ let package = Package(
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 .product(name: "BuildServerProtocol", package: "swift-tools-protocols"),
                 .product(name: "LanguageServerProtocolTransport", package: "swift-tools-protocols"),
-                .product(name: "Command", package: "Command"),
-                .product(name: "XcodeProj", package: "XcodeProj"),
                 //                .target(name: "SWBBuildServiceBundle"),
                 .product(name: "SwiftBuild", package: "swift-build"),
                 .product(name: "Logging", package: "swift-log"),
