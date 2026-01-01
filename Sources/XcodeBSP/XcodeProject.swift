@@ -4,8 +4,6 @@ import LanguageServerProtocol
 import Path
 import SwiftBuild
 
-typealias AbsolutePath = Path.AbsolutePath
-
 actor XcodeProject {
     var indexStorePath: AbsolutePath {
         try! AbsolutePath(validating: arena.indexDataStoreFolderPath!)

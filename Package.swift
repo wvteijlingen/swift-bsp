@@ -18,6 +18,7 @@ let package = Package(
             revision: "7737a7666ca94d191f33ce3d029f38d97196b50b"
         ),
         .package(url: "https://github.com/apple/swift-log", from: "1.6.0"),
+        .package(url: "https://github.com/tuist/Path", from: "0.3.8"),
     ],
     targets: [
         .executableTarget(
@@ -29,6 +30,7 @@ let package = Package(
                 //                .target(name: "SWBBuildServiceBundle"),
                 .product(name: "SwiftBuild", package: "swift-build"),
                 .product(name: "Logging", package: "swift-log"),
+                .product(name: "Path", package: "path"),
                 //                .product(name: "SWBBuildServiceBundle", package: "swift-build"),
             ]
         )
