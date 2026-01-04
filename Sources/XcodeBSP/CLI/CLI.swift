@@ -8,18 +8,16 @@ nonisolated(unsafe) var logger = Logger(label: "xcode-bsp")
 
 @main
 struct CLI: AsyncParsableCommand {
-    @MainActor static var projectFileName: String!
     @Option var project: String
 
     @MainActor
     func run() async throws {
         let pwd = FileManager.default.currentDirectoryPath
+        let projectFilePath = try AbsolutePath(validating: pwd).appending(component: project)
 
         LoggingSystem.bootstrap { _ in
             FileLogHandler(fileURL: URL(filePath: "\(pwd)/.xcodebsp/output.log"))
         }
-
-        Self.projectFileName = project
 
         logger.info("")
         logger.info("---------------------------")
@@ -29,7 +27,8 @@ struct CLI: AsyncParsableCommand {
         logger.info("---------------------------")
 
         Task {
-            BuildServer().start()
+            let buildServer = BuildServer(projectFilePath: projectFilePath)
+            await buildServer.start()
         }
 
         // Park the main function by sleeping for 10 years. All request handling is done on other threads and

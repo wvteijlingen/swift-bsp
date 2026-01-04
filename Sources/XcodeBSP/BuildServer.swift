@@ -2,31 +2,25 @@ import BuildServerProtocol
 import Foundation
 import LanguageServerProtocol
 import LanguageServerProtocolTransport
+import Path
 import ToolsProtocolsSwiftExtensions
 
-package class BuildServer {
-    private let connection: JSONRPCConnection
+// package class BuildServer {
+//     private let connection: JSONRPCConnection
+//     private let projectFilePath: AbsolutePath
 
-    package init() {
-        self.connection = JSONRPCConnection(
-            name: "XcodeBSP",
-            protocol: .bspProtocol,
-            inFD: FileHandle.standardInput,
-            outFD: FileHandle.standardOutput,
-            inputMirrorFile: nil,
-            outputMirrorFile: nil
-        )
-    }
+//     package init() {
+//         self.connection = JSONRPCConnection(
+//             name: "XcodeBSP",
+//             protocol: .bspProtocol,
+//             inFD: FileHandle.standardInput,
+//             outFD: FileHandle.standardOutput,
+//             inputMirrorFile: nil,
+//             outputMirrorFile: nil
+//         )
+//     }
 
-    package func start() {
-        connection.start(
-            receiveHandler: BSPMessageHandler(connection: connection),
-            closeHandler: {
-                //
-            }
-        )
-    }
-}
+// }
 
 enum State {
     case waitingForInitializeRequest
@@ -35,7 +29,7 @@ enum State {
     case shutdown
 }
 
-final actor BSPMessageHandler: QueueBasedMessageHandler {
+final actor BuildServer: QueueBasedMessageHandler {
     public let messageHandlingHelper = QueueBasedMessageHandlerHelper(
         signpostLoggingCategory: "BSPMessageHandler",
         createLoggingScope: false
@@ -44,12 +38,31 @@ final actor BSPMessageHandler: QueueBasedMessageHandler {
     public let messageHandlingQueue = AsyncQueue<BuildServerMessageDependencyTracker>()
     private var state = State.waitingForInitializeRequest
     private var xcodeProject: XcodeProject?
-    private let connection: any Connection
+    private let projectFilePath: AbsolutePath
+    private let connection: JSONRPCConnection
     private let workspaceLoadingQueue = AsyncQueue<Serial>()
     private let preparationQueue = AsyncQueue<Serial>()
 
-    init(connection: JSONRPCConnection) {
-        self.connection = connection
+    init(projectFilePath: AbsolutePath) {
+        self.connection = JSONRPCConnection(
+            name: "XcodeBSP",
+            protocol: .bspProtocol,
+            inFD: FileHandle.standardInput,
+            outFD: FileHandle.standardOutput,
+            inputMirrorFile: nil,
+            outputMirrorFile: nil
+        )
+
+        self.projectFilePath = projectFilePath
+    }
+
+    package func start() {
+        connection.start(
+            receiveHandler: self,
+            closeHandler: {
+                //
+            }
+        )
     }
 
     func handle(notification: some NotificationType) {
@@ -234,7 +247,7 @@ final actor BSPMessageHandler: QueueBasedMessageHandler {
 
 // MARK: - Request Handlers
 
-extension BSPMessageHandler {
+extension BuildServer {
     private func handle(request: InitializeBuildRequest) async throws -> InitializeBuildResponse {
         guard state == .waitingForInitializeRequest else {
             throw ResponseError.unknown("InitializeBuildRequest received while the build server is \(state)")
@@ -244,10 +257,14 @@ extension BSPMessageHandler {
             throw ResponseError.unknown("InitializeBuildRequest received with invalid rootUri")
         }
 
-        let rootPath = try AbsolutePath(validating: fileURL.path(percentEncoded: false))
+        guard fileURL.path(percentEncoded: false) == projectFilePath.parentDirectory.pathString else {
+            throw ResponseError.unknown(
+                "Expected rootUri to be '\(projectFilePath.parentDirectory.pathString)', actually is '\(fileURL.path(percentEncoded: false))'"
+            )
+        }
+
         let xcodeProject = try await XcodeProject(
-            projectRoot: rootPath,
-            projectFileName: CLI.projectFileName,
+            projectFilePath: projectFilePath,
             logger: self.logEntry(_:)
         )
 

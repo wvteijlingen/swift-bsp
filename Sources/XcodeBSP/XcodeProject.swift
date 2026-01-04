@@ -43,9 +43,10 @@ actor XcodeProject {
         }
     }
 
-    init(projectRoot: AbsolutePath, projectFileName: String, logger: @escaping (LogEntry) -> Void) async throws {
+    init(projectFilePath: AbsolutePath, logger: @escaping (LogEntry) -> Void) async throws {
         let service = try await SWBBuildService(connectionMode: .default, variant: .default)
-        let xcodeBspFolder = projectRoot.appending(components: ".xcodebsp")
+        let projectFolder = projectFilePath.parentDirectory
+        let xcodeBspFolder = projectFolder.appending(components: ".xcodebsp")
 
         self.arena = SWBArenaInfo(root: xcodeBspFolder.appending(component: "arena"), indexEnableDataStore: true)
         self.logger = logger
@@ -53,7 +54,7 @@ actor XcodeProject {
         logger(.info("Creating session..."))
 
         let (session, diagnosticInfo) = await service.createSession(
-            name: projectRoot.pathString,
+            name: projectFilePath.pathString,
             developerPath: "/Applications/Xcode.app/Contents/Developer",
             cachePath: xcodeBspFolder.appending(component: "cache").pathString,
             inferiorProductsPath: xcodeBspFolder.appending(component: "inferiorProducts").pathString,
@@ -70,9 +71,7 @@ actor XcodeProject {
 
         logger(.info("Loading workspace..."))
 
-        try await buildServiceSession.loadWorkspace(
-            containerPath: projectRoot.appending(component: projectFileName).pathString
-        )
+        try await buildServiceSession.loadWorkspace(containerPath: projectFilePath.pathString)
 
         logger(.info("Loaded workspace"))
 
