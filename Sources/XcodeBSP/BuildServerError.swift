@@ -10,6 +10,7 @@ enum BuildServerError: Error {
     //    case sessionAlreadyStarted
     case noTargetsFound
     case schemeNotFound
+    case projectNotInitialized
     case unknown
     case cannotLoadBuildDescriptionID
 }

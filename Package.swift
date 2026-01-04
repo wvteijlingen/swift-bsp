@@ -8,7 +8,7 @@ let package = Package(
     platforms: [.macOS(.v14)],
     products: [
         .executable(name: "xcodebsp", targets: ["XcodeBSP"])
-        //        .executable(name: "SWBBuildServiceBundle", targets: ["SWBBuildServiceBundle"]),
+        // .executable(name: "SWBBuildServiceBundle", targets: ["BuildServiceBundle"]),
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.2.0"),
@@ -27,22 +27,17 @@ let package = Package(
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 .product(name: "BuildServerProtocol", package: "swift-tools-protocols"),
                 .product(name: "LanguageServerProtocolTransport", package: "swift-tools-protocols"),
-                //                .target(name: "SWBBuildServiceBundle"),
                 .product(name: "SwiftBuild", package: "swift-build"),
                 .product(name: "Logging", package: "swift-log"),
                 .product(name: "Path", package: "path"),
-                //                .product(name: "SWBBuildServiceBundle", package: "swift-build"),
+                .product(name: "SWBBuildServiceBundle", package: "swift-build"),
             ]
-        )
-        //        .executableTarget(
-        //            name: "SWBBuildServiceBundle",
-        //            dependencies: [
-        //                .product(name: "SWBBuildService", package: "swift-build"),
-        //                .product(name: "SWBBuildSystem", package: "swift-build"),
-        //                .product(name: "SWBServiceCore", package: "swift-build"),
-        //                .product(name: "SWBUtil", package: "swift-build"),
-        //                .product(name: "SWBCore", package: "swift-build"),
-        //            ]
-        //        )
+        ),
+        .executableTarget(
+            name: "BuildServiceBundle",
+            dependencies: [
+                .product(name: "SWBBuildService", package: "swift-build")
+            ]
+        ),
     ]
 )

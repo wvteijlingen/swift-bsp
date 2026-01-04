@@ -24,7 +24,11 @@ struct FileLogHandler: LogHandler {
         function: String,
         line: UInt
     ) {
-        let logLine = "[\(level.rawValue.padded(8, with: " ", side: .right))] \(message)\n"
+        let date = Date().formatted(
+            .dateTime.year(.twoDigits).month(.twoDigits).day(.twoDigits).hour().minute().second()
+        )
+
+        let logLine = "[\(date)] \(level.rawValue.padded(8, with: " ", side: .left)): \(message)\n"
 
         if let handle = try? FileHandle(forWritingTo: fileURL) {
             handle.seekToEndOfFile()

@@ -13,10 +13,9 @@ actor XcodeProject {
         try! AbsolutePath(validating: arena.indexDataStoreFolderPath!)
     }
 
-    private let projectRoot: AbsolutePath
-    private let projectFilePath: AbsolutePath
+    private let logger: (LogEntry) -> Void
+
     private let arena: SWBArenaInfo
-    private let logger: (BuildServerProtocol.MessageType, String, BuildServerProtocol.StructuredLogKind?) -> Void
     private let buildServiceSession: SWBBuildServiceSession
     private var buildRequest: SWBBuildRequest {
         get async throws {
@@ -44,28 +43,39 @@ actor XcodeProject {
         }
     }
 
-    init(
-        projectRoot: AbsolutePath,
-        projectFileName: String,
-        logger: @escaping (BuildServerProtocol.MessageType, String, BuildServerProtocol.StructuredLogKind?) -> Void
-    ) async throws {
-        let xcodeBspFolder = projectRoot.appending(components: ".xcodebsp")
+    init(projectRoot: AbsolutePath, projectFileName: String, logger: @escaping (LogEntry) -> Void) async throws {
         let service = try await SWBBuildService(connectionMode: .default, variant: .default)
+        let xcodeBspFolder = projectRoot.appending(components: ".xcodebsp")
 
-        self.projectRoot = projectRoot
-        self.projectFilePath = projectRoot.appending(component: projectFileName)
         self.arena = SWBArenaInfo(root: xcodeBspFolder.appending(component: "arena"), indexEnableDataStore: true)
         self.logger = logger
 
-        self.buildServiceSession = try await service.createSession(
+        logger(.info("Creating session..."))
+
+        let (session, diagnosticInfo) = await service.createSession(
             name: projectRoot.pathString,
             developerPath: "/Applications/Xcode.app/Contents/Developer",
             cachePath: xcodeBspFolder.appending(component: "cache").pathString,
             inferiorProductsPath: xcodeBspFolder.appending(component: "inferiorProducts").pathString,
             environment: [:]
-        ).0.get()
+        )
 
-        try await buildServiceSession.loadWorkspace(containerPath: projectFilePath.pathString)
+        if !diagnosticInfo.isEmpty {
+            logger(.warning(diagnosticInfo))
+        }
+
+        self.buildServiceSession = try session.get()
+
+        logger(.info("Created session"))
+
+        logger(.info("Loading workspace..."))
+
+        try await buildServiceSession.loadWorkspace(
+            containerPath: projectRoot.appending(component: projectFileName).pathString
+        )
+
+        logger(.info("Loaded workspace"))
+
         try await buildServiceSession.setSystemInfo(.default())
     }
 
@@ -100,7 +110,7 @@ actor XcodeProject {
             buildRequest: buildRequest
         )
 
-        logger(.info, String(describing: targets), nil)
+        logger(.info(targets))
 
         return try targets.map { targetInfo in
             //            let tags = try await buildServiceSession.evaluateMacroAsStringList(
@@ -275,38 +285,39 @@ extension XcodeProject {
         for try await event in events {
             switch event {
             case .planningOperationStarted(_):
-                logger(.log, "Planning Build", .begin(.init(title: "Planning Build")))
+                logger(.log("Planning Build", .begin(.init(title: "Planning Build"))))
             case .planningOperationCompleted(_):
-                logger(.info, "Build Planning Complete", .end(.init()))
+                logger(.info("Build Planning Complete", .end(.init())))
             case .buildStarted(_):
-                logger(.log, "Building", .begin(.init(title: "Building")))
+                logger(.log("Building", .begin(.init(title: "Building"))))
             case .buildDiagnostic(let info):
-                logger(.log, info.message, .report(.init()))
+                logger(.log(info.message, .report(.init())))
             case .buildCompleted(let info):
                 switch info.result {
                 case .ok:
-                    logger(.log, "Build Complete", .end(.init()))
+                    logger(.log("Build Complete", .end(.init())))
                 case .failed:
-                    logger(.log, "Build Failed", .end(.init()))
+                    logger(.log("Build Failed", .end(.init())))
                 case .cancelled:
-                    logger(.log, "Build Cancelled", .end(.init()))
+                    logger(.log("Build Cancelled", .end(.init())))
                 case .aborted:
-                    logger(.log, "Build Aborted", .end(.init()))
+                    logger(.log("Build Aborted", .end(.init())))
                 }
             case .preparationComplete(_):
-                logger(.log, "Build Preparation Complete", .end(.init()))
+                logger(.log("Build Preparation Complete", .end(.init())))
             case .didUpdateProgress(_):
                 break
             case .taskStarted(let info):
-                logger(.log, info.executionDescription, .begin(.init(title: info.executionDescription)))
+                logger(
+                    .log(info.executionDescription, .begin(.init(title: info.executionDescription))))
             case .taskDiagnostic(let info):
-                logger(.log, info.message, .report(.init()))
+                logger(.log(info.message, .report(.init())))
             case .taskComplete(_):
                 break
             case .targetDiagnostic(let info):
-                logger(.log, info.message, .report(.init()))
+                logger(.log(info.message, .report(.init())))
             case .diagnostic(let info):
-                logger(.log, info.message, .report(.init()))
+                logger(.log(info.message, .report(.init())))
             case .backtraceFrame, .reportPathMap, .reportBuildDescription, .preparedForIndex, .buildOutput,
                 .targetStarted, .targetComplete, .targetOutput, .targetUpToDate, .taskUpToDate, .taskOutput, .output:
                 break
