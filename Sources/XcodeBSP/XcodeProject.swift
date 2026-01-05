@@ -122,33 +122,6 @@ actor XcodeProject {
 
     // MARK: - Loaders
 
-    // private func loadBuildDescriptionID() async throws -> SWBBuildDescriptionID {
-    //     try await workspaceLoadingQueue.asyncThrowing {
-    //         let operation = try await self.buildServiceSession.createBuildOperationForBuildDescriptionOnly(
-    //             request: self.buildRequest,
-    //             delegate: self
-    //         )
-
-    //         var buildDescriptionID: SWBBuildDescriptionID?
-
-    //         for try await event in try await operation.start() {
-    //             self.logEvent(event)
-
-    //             guard case .reportBuildDescription(let info) = event else {
-    //                 continue
-    //             }
-
-    //             buildDescriptionID = SWBBuildDescriptionID(info.buildDescriptionID)
-    //         }
-
-    //         guard let buildDescriptionID else {
-    //             throw BuildServerError.cannotLoadBuildDescriptionID
-    //         }
-
-    //         return buildDescriptionID
-    //     }.valuePropagatingCancellation
-    // }
-
     func loadBuildTargets() async throws -> [BuildTarget] {
         guard let (buildRequest, buildDescriptionID) = workspaceInfo else {
             throw BuildServerError.noWorkspaceInfo
