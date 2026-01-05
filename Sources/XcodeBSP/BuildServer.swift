@@ -38,12 +38,16 @@ final actor BuildServer: QueueBasedMessageHandler {
     public let messageHandlingQueue = AsyncQueue<BuildServerMessageDependencyTracker>()
     private var state = State.waitingForInitializeRequest
     private var xcodeProject: XcodeProject?
+
+    private let onExit: (_ code: Int32) -> Void
     private let projectFilePath: AbsolutePath
     private let connection: JSONRPCConnection
     private let workspaceLoadingQueue = AsyncQueue<Serial>()
     private let preparationQueue = AsyncQueue<Serial>()
 
-    init(projectFilePath: AbsolutePath) {
+    init(projectFilePath: AbsolutePath, onExit: @escaping (_ code: Int32) -> Void) {
+        self.onExit = onExit
+
         self.connection = JSONRPCConnection(
             name: "XcodeBSP",
             protocol: .bspProtocol,
@@ -66,31 +70,33 @@ final actor BuildServer: QueueBasedMessageHandler {
     }
 
     func handle(notification: some NotificationType) {
-        logEntry(.info("[Receive] Notification - \(notification)"))
+        logEntry(.log("[Receive] Notification - \(notification)"))
 
-        switch notification {
-        case _ as CancelRequestNotification:
-            break
-        case _ as OnBuildExitNotification:
-            _Exit(0)
-        case _ as OnBuildInitializedNotification:
-            state = .running
-        case _ as OnBuildLogMessageNotification:
-            break
-        case _ as OnBuildTargetDidChangeNotification:
-            break
-        case _ as OnWatchedFilesDidChangeNotification:
-            break
-        case _ as FileOptionsChangedNotification:
-            break
-        case _ as TaskFinishNotification:
-            break
-        case _ as TaskProgressNotification:
-            break
-        case _ as TaskStartNotification:
-            break
-        default:
-            break
+        Task {
+            switch notification {
+            case _ as CancelRequestNotification:
+                break
+            case _ as OnBuildExitNotification:
+                onExit(state == .shutdown ? 0 : 1)
+            case _ as OnBuildInitializedNotification:
+                state = .running
+            case _ as OnBuildLogMessageNotification:
+                break
+            case _ as OnBuildTargetDidChangeNotification:
+                break
+            case let notification as OnWatchedFilesDidChangeNotification:
+                try await handle(notification: notification)
+            case _ as FileOptionsChangedNotification:
+                break
+            case _ as TaskFinishNotification:
+                break
+            case _ as TaskProgressNotification:
+                break
+            case _ as TaskStartNotification:
+                break
+            default:
+                break
+            }
         }
     }
 
@@ -99,11 +105,11 @@ final actor BuildServer: QueueBasedMessageHandler {
         id: RequestID,
         reply: @escaping @Sendable (LSPResult<Request.Response>) -> Void
     ) where Request: RequestType {
-        logEntry(.info("[Receive] Request - \(id) - \(request)"))
+        logEntry(.log("[Receive] Request - \(id) - \(request)"))
 
         let requestAndReply = RequestAndReply(request) { response in
             Task {
-                await self.logEntry(.info("[Send] \(response)"))
+                await self.logEntry(.log("[Send] \(response)"))
             }
             reply(response)
         }
@@ -190,7 +196,7 @@ final actor BuildServer: QueueBasedMessageHandler {
             )
         )
 
-        logEntry(.log("Task start: \(name)", .begin(StructuredLogBegin(title: name))))
+        logEntry(.info("## Task start: \(name)", .begin(StructuredLogBegin(title: name))))
 
         do {
             let result = try await perform()
@@ -206,7 +212,7 @@ final actor BuildServer: QueueBasedMessageHandler {
                 )
             )
 
-            logEntry(.log(name, .end(StructuredLogEnd())))
+            logEntry(.info(name, .end(StructuredLogEnd())))
 
             return result
         } catch let error as CancellationError {
@@ -222,7 +228,7 @@ final actor BuildServer: QueueBasedMessageHandler {
                 )
             )
 
-            logEntry(.log("Task cancelled: \(name)", .end(StructuredLogEnd())))
+            logEntry(.info("## Task cancelled: \(name)", .end(StructuredLogEnd())))
 
             throw error
         } catch {
@@ -238,7 +244,7 @@ final actor BuildServer: QueueBasedMessageHandler {
                 )
             )
 
-            logEntry(.log("Task finish: \(name)", .end(StructuredLogEnd())))
+            logEntry(.info("## Task finish: \(name)", .end(StructuredLogEnd())))
 
             throw error
         }
@@ -316,7 +322,8 @@ extension BuildServer {
     }
 
     private func handle(request: BuildShutdownRequest) async throws -> VoidResponse {
-        VoidResponse()
+        state = .shutdown
+        return VoidResponse()
     }
 
     private func handle(request: BuildTargetSourcesRequest) async throws -> BuildTargetSourcesResponse {
@@ -343,11 +350,11 @@ extension BuildServer {
             throw BuildServerError.projectNotInitialized
         }
 
-        logEntry(.info("Finding build targets..."))
+        logEntry(.log("Finding build targets..."))
 
         let buildTargets = try await xcodeProject.loadBuildTargets()
 
-        logEntry(.info("Found \(buildTargets.count) targets"))
+        logEntry(.log("Found \(buildTargets.count) targets"))
 
         return WorkspaceBuildTargetsResponse(targets: buildTargets)
     }
@@ -387,5 +394,26 @@ extension BuildServer {
 
         let arguments = try await xcodeProject.loadCompilerArguments(file: filePath, targetIdentifier: request.target)
         return TextDocumentSourceKitOptionsResponse(compilerArguments: arguments)
+    }
+}
+
+// MARK: - Notification Handlers
+
+extension BuildServer {
+    func handle(notification: OnWatchedFilesDidChangeNotification) async throws {
+        guard state == .running else {
+            throw ResponseError.unknown(
+                "OnWatchedFilesDidChangeNotification received while the build server is \(state)")
+        }
+
+        guard let xcodeProject else {
+            throw BuildServerError.projectNotInitialized
+        }
+
+        for change in notification.changes {
+            if change.uri.fileURL?.path(percentEncoded: false) == projectFilePath.pathString {
+                try await xcodeProject.loadProject()
+            }
+        }
     }
 }

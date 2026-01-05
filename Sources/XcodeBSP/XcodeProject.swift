@@ -3,6 +3,7 @@ import Foundation
 import LanguageServerProtocol
 import Path
 import SwiftBuild
+import ToolsProtocolsSwiftExtensions
 
 actor XcodeProject {
     var indexStorePath: AbsolutePath {
@@ -14,44 +15,25 @@ actor XcodeProject {
     }
 
     private let logger: (LogEntry) -> Void
-
+    private let projectFilePath: AbsolutePath
     private let arena: SWBArenaInfo
     private let buildServiceSession: SWBBuildServiceSession
-    private var buildRequest: SWBBuildRequest {
-        get async throws {
-            var request = SWBBuildRequest()
-            request.buildCommand = .prepareForIndexing(buildOnlyTheseTargets: nil, enableIndexBuildArena: true)
-            request.parameters.arenaInfo = arena
-            request.enableIndexBuildArena = true
 
-            let workspaceInfo = try await buildServiceSession.workspaceInfo()
+    private let workspaceLoadingQueue = AsyncQueue<Serial>()
+    private let preparationQueue = AsyncQueue<Serial>()
 
-            for target in workspaceInfo.targetInfos {
-                request.add(target: SWBConfiguredTarget(guid: target.guid))
-            }
-
-            return request
-        }
-    }
-
-    private var _buildDescriptionID: SWBBuildDescriptionID?
-    private var buildDescriptionID: SWBBuildDescriptionID {
-        get async throws {
-            if let _buildDescriptionID { return _buildDescriptionID }
-            self._buildDescriptionID = try await loadBuildDescriptionID()
-            return _buildDescriptionID!
-        }
-    }
+    private var workspaceInfo: (SWBBuildRequest, SWBBuildDescriptionID)?
 
     init(projectFilePath: AbsolutePath, logger: @escaping (LogEntry) -> Void) async throws {
-        let service = try await SWBBuildService(connectionMode: .default, variant: .default)
-        let projectFolder = projectFilePath.parentDirectory
-        let xcodeBspFolder = projectFolder.appending(components: ".xcodebsp")
+        let xcodeBspFolder = projectFilePath.parentDirectory.appending(components: ".xcodebsp")
 
+        self.projectFilePath = projectFilePath
         self.arena = SWBArenaInfo(root: xcodeBspFolder.appending(component: "arena"), indexEnableDataStore: true)
         self.logger = logger
 
-        logger(.info("Creating session..."))
+        logger(.log("Creating session..."))
+
+        let service = try await SWBBuildService(connectionMode: .default, variant: .default)
 
         let (session, diagnosticInfo) = await service.createSession(
             name: projectFilePath.pathString,
@@ -67,28 +49,63 @@ actor XcodeProject {
 
         self.buildServiceSession = try session.get()
 
-        logger(.info("Created session"))
+        logger(.log("Created session"))
 
-        logger(.info("Loading workspace..."))
-
-        try await buildServiceSession.loadWorkspace(containerPath: projectFilePath.pathString)
-
-        logger(.info("Loaded workspace"))
-
-        try await buildServiceSession.setSystemInfo(.default())
+        try await loadProject()
     }
 
     // MARK: - Loaders
 
-    private func loadBuildDescriptionID() async throws -> SWBBuildDescriptionID {
-        let buildDescriptionOperation = try await buildServiceSession.createBuildOperationForBuildDescriptionOnly(
+    func loadProject() async throws {
+        try await workspaceLoadingQueue.asyncThrowing {
+            try await self.loadWorkspace()
+            let buildRequest = try await self.loadBasicBuildRequest()
+            let buildDescriptionID = try await self.loadBuildDescriptionID(buildRequest: buildRequest)
+
+            self.workspaceInfo = (buildRequest, buildDescriptionID)
+        }.valuePropagatingCancellation
+    }
+
+    private func loadWorkspace() async throws {
+        logger(.log("Loading workspace '\(projectFilePath.pathString)'..."))
+        defer { logger(.log("Loaded workspace")) }
+
+        try await buildServiceSession.loadWorkspace(containerPath: projectFilePath.pathString)
+        try await buildServiceSession.setSystemInfo(.default())
+    }
+
+    private func loadBasicBuildRequest() async throws -> SWBBuildRequest {
+        logger(.log("Loading build request..."))
+        defer { logger(.log("Loaded build request")) }
+
+        var buildRequest = SWBBuildRequest()
+        buildRequest.buildCommand = .prepareForIndexing(buildOnlyTheseTargets: nil, enableIndexBuildArena: true)
+        buildRequest.parameters.arenaInfo = arena
+        buildRequest.enableIndexBuildArena = true
+
+        let workspaceInfo = try await buildServiceSession.workspaceInfo()
+
+        for target in workspaceInfo.targetInfos {
+            buildRequest.add(target: SWBConfiguredTarget(guid: target.guid))
+        }
+
+        return buildRequest
+    }
+
+    private func loadBuildDescriptionID(buildRequest: SWBBuildRequest) async throws -> SWBBuildDescriptionID {
+        logger(.log("Loading build description ID..."))
+        defer { logger(.log("Loaded build description ID")) }
+
+        let operation = try await buildServiceSession.createBuildOperationForBuildDescriptionOnly(
             request: buildRequest,
             delegate: self
         )
 
         var buildDescriptionID: SWBBuildDescriptionID?
 
-        for try await event in try await buildDescriptionOperation.start() {
+        for try await event in try await operation.start() {
+            logEvent(event)
+
             guard case .reportBuildDescription(let info) = event else {
                 continue
             }
@@ -103,13 +120,44 @@ actor XcodeProject {
         return buildDescriptionID
     }
 
+    // MARK: - Loaders
+
+    // private func loadBuildDescriptionID() async throws -> SWBBuildDescriptionID {
+    //     try await workspaceLoadingQueue.asyncThrowing {
+    //         let operation = try await self.buildServiceSession.createBuildOperationForBuildDescriptionOnly(
+    //             request: self.buildRequest,
+    //             delegate: self
+    //         )
+
+    //         var buildDescriptionID: SWBBuildDescriptionID?
+
+    //         for try await event in try await operation.start() {
+    //             self.logEvent(event)
+
+    //             guard case .reportBuildDescription(let info) = event else {
+    //                 continue
+    //             }
+
+    //             buildDescriptionID = SWBBuildDescriptionID(info.buildDescriptionID)
+    //         }
+
+    //         guard let buildDescriptionID else {
+    //             throw BuildServerError.cannotLoadBuildDescriptionID
+    //         }
+
+    //         return buildDescriptionID
+    //     }.valuePropagatingCancellation
+    // }
+
     func loadBuildTargets() async throws -> [BuildTarget] {
+        guard let (buildRequest, buildDescriptionID) = workspaceInfo else {
+            throw BuildServerError.noWorkspaceInfo
+        }
+
         let targets = try await buildServiceSession.configuredTargets(
-            buildDescription: try await buildDescriptionID,
+            buildDescription: buildDescriptionID,
             buildRequest: buildRequest
         )
-
-        logger(.info(targets))
 
         return try targets.map { targetInfo in
             //            let tags = try await buildServiceSession.evaluateMacroAsStringList(
@@ -149,6 +197,9 @@ actor XcodeProject {
     }
 
     func loadBuildSources(targetIdentifiers: [BuildTargetIdentifier]) async throws -> [SourcesItem] {
+        guard let (buildRequest, buildDescriptionID) = workspaceInfo else {
+            throw BuildServerError.noWorkspaceInfo
+        }
 
         let configuredTargetIdentifiers = targetIdentifiers.map(\.configuredTargetIdentifier)
 
@@ -182,7 +233,11 @@ actor XcodeProject {
     }
 
     func loadCompilerArguments(file: AbsolutePath, targetIdentifier: BuildTargetIdentifier) async throws -> [String] {
-        try await buildServiceSession.indexCompilerArguments(
+        guard let (buildRequest, buildDescriptionID) = workspaceInfo else {
+            throw BuildServerError.noWorkspaceInfo
+        }
+
+        return try await buildServiceSession.indexCompilerArguments(
             of: SwiftBuild.AbsolutePath(validating: file.pathString),
             in: targetIdentifier.configuredTargetIdentifier,
             buildDescription: buildDescriptionID,
@@ -193,19 +248,28 @@ actor XcodeProject {
     // MARK: - Mutators
 
     func prepareTargets(targets: [BuildTargetIdentifier]) async throws {
-        var request = try await buildRequest
+        try await preparationQueue.asyncThrowing {
+            guard let buildRequest = self.workspaceInfo?.0 else {
+                throw BuildServerError.noWorkspaceInfo
+            }
 
-        let targetGUIDs = targets.map {
-            $0.configuredTargetIdentifier.targetGUID.rawValue
-        }
+            var request = buildRequest
 
-        request.buildCommand = .prepareForIndexing(buildOnlyTheseTargets: targetGUIDs, enableIndexBuildArena: true)
+            let targetGUIDs = targets.map {
+                $0.configuredTargetIdentifier.targetGUID.rawValue
+            }
 
-        let buildOperation = try await buildServiceSession.createBuildOperation(request: request, delegate: self)
+            request.buildCommand = .prepareForIndexing(
+                buildOnlyTheseTargets: targetGUIDs, enableIndexBuildArena: true)
 
-        let events = try await buildOperation.start()
-        await self.logEvents(events)
-        await buildOperation.waitForCompletion()
+            let buildOperation = try await self.buildServiceSession.createBuildOperation(
+                request: request,
+                delegate: self)
+
+            let events = try await buildOperation.start()
+            await self.logEvents(events)
+            await buildOperation.waitForCompletion()
+        }.valuePropagatingCancellation
     }
 
     func buildIndex() async throws {
@@ -213,7 +277,12 @@ actor XcodeProject {
     }
 
     func buildTarget(target: String) async throws {
-        var request = try await buildRequest
+        guard let buildRequest = self.workspaceInfo?.0 else {
+            throw BuildServerError.noWorkspaceInfo
+        }
+
+        var request = buildRequest
+
         request.buildCommand = .build(style: .buildOnly)
         request.parameters.action = "build"
         request.parameters.configurationName = "Debug"
@@ -231,7 +300,12 @@ actor XcodeProject {
     }
 
     func buildSources(paths: [AbsolutePath], target: String) async throws {
-        var request = try await buildRequest
+        guard let buildRequest = self.workspaceInfo?.0 else {
+            throw BuildServerError.noWorkspaceInfo
+        }
+
+        var request = buildRequest
+
         request.buildCommand = .buildFiles(paths: paths.map(\.pathString), action: .compile)
         request.parameters.action = "build"
         request.parameters.configurationName = "Debug"
@@ -280,47 +354,76 @@ extension XcodeProject: SWBIndexingDelegate {
 }
 
 extension XcodeProject {
+    private func logEvent(_ event: SwiftBuildMessage) {
+        switch event {
+        case .planningOperationStarted(_):
+            logger(.log("Planning Build", .begin(StructuredLogBegin(title: "Planning Build"))))
+        case .planningOperationCompleted(_):
+            logger(.log("Build Planning Complete", .end(StructuredLogEnd())))
+        case .buildStarted(_):
+            logger(.log("Building", .begin(StructuredLogBegin(title: "Building"))))
+        case .buildDiagnostic(let info):
+            logger(.log(info.message, .report(StructuredLogReport())))
+        case .buildCompleted(let info):
+            switch info.result {
+            case .ok:
+                logger(.info("Build Complete", .end(StructuredLogEnd())))
+            case .failed:
+                logger(.error("Build Failed", .end(StructuredLogEnd())))
+            case .cancelled:
+                logger(.warning("Build Cancelled", .end(StructuredLogEnd())))
+            case .aborted:
+                logger(.warning("Build Aborted", .end(StructuredLogEnd())))
+            }
+        case .preparationComplete(_):
+            logger(.log("Build Preparation Complete", .end(StructuredLogEnd())))
+        case .didUpdateProgress(let info):
+            logger(.log("Progress: \(info.message) \(info.percentComplete)%"))
+        case .taskStarted(let info):
+            logger(
+                .log(
+                    "Task Started \(info.taskID): \(info.executionDescription)",
+                    .begin(
+                        StructuredLogBegin(title: info.executionDescription)
+                    )))
+        case .taskDiagnostic(let info):
+            logger(.log("Task Diagnostic \(info.taskID): \(info.message)", .report(StructuredLogReport())))
+        case .taskComplete(let info):
+            logger(.log("Task Complete: \(info.taskID)", .end(StructuredLogEnd())))
+        case .targetDiagnostic(let info):
+            logger(.log("Target Diagnostic \(info.targetID): \(info.message)", .report(StructuredLogReport())))
+        case .diagnostic(let info):
+            logger(.log("Diagnostic: \(info.message)", .report(StructuredLogReport())))
+        case .backtraceFrame:
+            logger(.log(".backtraceFrame"))
+        case .reportPathMap:
+            logger(.log(".reportPathMap"))
+        case .reportBuildDescription:
+            logger(.log(".reportBuildDescription"))
+        case .preparedForIndex:
+            logger(.log(".preparedForIndex"))
+        case .buildOutput:
+            logger(.log(".buildOutput"))
+        case .targetStarted:
+            logger(.log(".targetStarted"))
+        case .targetComplete:
+            logger(.log(".targetComplete"))
+        case .targetOutput:
+            logger(.log(".targetOutput"))
+        case .targetUpToDate:
+            logger(.log(".targetUpToDate"))
+        case .taskUpToDate:
+            logger(.log(".taskUpToDate"))
+        case .taskOutput:
+            logger(.log(".taskOutput"))
+        case .output:
+            logger(.log(".output"))
+        }
+    }
+
     private func logEvents(_ events: AsyncStream<SwiftBuildMessage>) async {
         for try await event in events {
-            switch event {
-            case .planningOperationStarted(_):
-                logger(.log("Planning Build", .begin(.init(title: "Planning Build"))))
-            case .planningOperationCompleted(_):
-                logger(.info("Build Planning Complete", .end(.init())))
-            case .buildStarted(_):
-                logger(.log("Building", .begin(.init(title: "Building"))))
-            case .buildDiagnostic(let info):
-                logger(.log(info.message, .report(.init())))
-            case .buildCompleted(let info):
-                switch info.result {
-                case .ok:
-                    logger(.log("Build Complete", .end(.init())))
-                case .failed:
-                    logger(.log("Build Failed", .end(.init())))
-                case .cancelled:
-                    logger(.log("Build Cancelled", .end(.init())))
-                case .aborted:
-                    logger(.log("Build Aborted", .end(.init())))
-                }
-            case .preparationComplete(_):
-                logger(.log("Build Preparation Complete", .end(.init())))
-            case .didUpdateProgress(_):
-                break
-            case .taskStarted(let info):
-                logger(
-                    .log(info.executionDescription, .begin(.init(title: info.executionDescription))))
-            case .taskDiagnostic(let info):
-                logger(.log(info.message, .report(.init())))
-            case .taskComplete(_):
-                break
-            case .targetDiagnostic(let info):
-                logger(.log(info.message, .report(.init())))
-            case .diagnostic(let info):
-                logger(.log(info.message, .report(.init())))
-            case .backtraceFrame, .reportPathMap, .reportBuildDescription, .preparedForIndex, .buildOutput,
-                .targetStarted, .targetComplete, .targetOutput, .targetUpToDate, .taskUpToDate, .taskOutput, .output:
-                break
-            }
+            logEvent(event)
         }
     }
 }

@@ -9,17 +9,22 @@ nonisolated(unsafe) var logger = Logger(label: "xcode-bsp")
 @main
 struct CLI: AsyncParsableCommand {
     @Option var project: String
+    @Flag var persistLog = false
 
     @MainActor
     func run() async throws {
         let pwd = FileManager.default.currentDirectoryPath
         let projectFilePath = try AbsolutePath(validating: pwd).appending(component: project)
+        let logFileURL = URL(filePath: "\(pwd)/.xcodebsp/xcodebsp.log")
 
-        LoggingSystem.bootstrap { _ in
-            FileLogHandler(fileURL: URL(filePath: "\(pwd)/.xcodebsp/output.log"))
+        if !persistLog {
+            try? FileManager.default.removeItem(at: logFileURL)
         }
 
-        logger.info("")
+        LoggingSystem.bootstrap { _ in
+            FileLogHandler(fileURL: logFileURL)
+        }
+
         logger.info("---------------------------")
         logger.info("Starting Xcode Build Server")
         logger.info("directory: \(pwd)")
@@ -27,7 +32,12 @@ struct CLI: AsyncParsableCommand {
         logger.info("---------------------------")
 
         Task {
-            let buildServer = BuildServer(projectFilePath: projectFilePath)
+            let buildServer = BuildServer(
+                projectFilePath: projectFilePath,
+                onExit: { @Sendable code in
+                    _Exit(code)
+                })
+
             await buildServer.start()
         }
 
