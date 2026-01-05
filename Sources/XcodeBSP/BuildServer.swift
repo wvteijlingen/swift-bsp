@@ -5,23 +5,6 @@ import LanguageServerProtocolTransport
 import Path
 import ToolsProtocolsSwiftExtensions
 
-// package class BuildServer {
-//     private let connection: JSONRPCConnection
-//     private let projectFilePath: AbsolutePath
-
-//     package init() {
-//         self.connection = JSONRPCConnection(
-//             name: "XcodeBSP",
-//             protocol: .bspProtocol,
-//             inFD: FileHandle.standardInput,
-//             outFD: FileHandle.standardOutput,
-//             inputMirrorFile: nil,
-//             outputMirrorFile: nil
-//         )
-//     }
-
-// }
-
 enum State {
     case waitingForInitializeRequest
     case waitingForInitializedNotification
@@ -36,9 +19,9 @@ final actor BuildServer: QueueBasedMessageHandler {
     )
 
     public let messageHandlingQueue = AsyncQueue<BuildServerMessageDependencyTracker>()
+
     private var state = State.waitingForInitializeRequest
     private var xcodeProject: XcodeProject?
-
     private let onExit: (_ code: Int32) -> Void
     private let projectFilePath: AbsolutePath
     private let connection: JSONRPCConnection
