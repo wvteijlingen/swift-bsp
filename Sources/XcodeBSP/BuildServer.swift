@@ -27,10 +27,11 @@ final actor BuildServer: QueueBasedMessageHandler {
     private let connection: JSONRPCConnection
     private let workspaceLoadingQueue = AsyncQueue<Serial>()
     private let preparationQueue = AsyncQueue<Serial>()
+    private let taskLogger: TaskLogger
 
     init(projectFilePath: AbsolutePath, onExit: @escaping (_ code: Int32) -> Void) {
+        self.projectFilePath = projectFilePath
         self.onExit = onExit
-
         self.connection = JSONRPCConnection(
             name: "XcodeBSP",
             protocol: .bspProtocol,
@@ -39,8 +40,7 @@ final actor BuildServer: QueueBasedMessageHandler {
             inputMirrorFile: nil,
             outputMirrorFile: nil
         )
-
-        self.projectFilePath = projectFilePath
+        self.taskLogger = TaskLogger(connection: self.connection)
     }
 
     package func start() {
@@ -101,16 +101,12 @@ final actor BuildServer: QueueBasedMessageHandler {
             switch requestAndReply {
             case let req as RequestAndReply<InitializeBuildRequest>:
                 await req.reply {
-                    try await logTask("Initializing Swift Build Server") {
-                        try await handle(request: req.params)
-                    }
+                    try await handle(request: req.params)
                 }
 
             case let req as RequestAndReply<WorkspaceBuildTargetsRequest>:
                 await req.reply {
-                    try await logTask("Loading targets") {
-                        try await handle(request: req.params)
-                    }
+                    try await handle(request: req.params)
                 }
 
             case let req as RequestAndReply<BuildShutdownRequest>:
@@ -120,9 +116,7 @@ final actor BuildServer: QueueBasedMessageHandler {
 
             case let req as RequestAndReply<BuildTargetSourcesRequest>:
                 await req.reply {
-                    try await logTask("Loading target sources") {
-                        try await handle(request: req.params)
-                    }
+                    try await handle(request: req.params)
                 }
 
             case let req as RequestAndReply<WorkspaceWaitForBuildSystemUpdatesRequest>:
@@ -132,16 +126,17 @@ final actor BuildServer: QueueBasedMessageHandler {
 
             case let req as RequestAndReply<BuildTargetPrepareRequest>:
                 await req.reply {
-                    try await logTask("Preparing targets") {
-                        try await handle(request: req.params)
-                    }
+                    try await handle(request: req.params)
                 }
 
             case let req as RequestAndReply<TextDocumentSourceKitOptionsRequest>:
                 await req.reply {
-                    try await logTask("Loading compiler options") {
-                        try await handle(request: req.params)
-                    }
+                    try await handle(request: req.params)
+                }
+
+            case let req as RequestAndReply<WorkspaceWaitForBuildSystemUpdatesRequest>:
+                await req.reply {
+                    try await handle(request: req.params)
                 }
 
             default:
@@ -153,84 +148,15 @@ final actor BuildServer: QueueBasedMessageHandler {
     private func logEntry(_ entry: LogEntry) {
         logger.log(level: entry.type, entry.message)
 
-        connection.send(
-            OnBuildLogMessageNotification(
-                type: entry.type,
-                task: nil,
-                originId: nil,
-                message: "[xcodebsp] \(entry.message)",
-                structure: entry.structure
-            )
-        )
-    }
-
-    private func logTask<T>(_ name: String, _ perform: () async throws -> T) async throws -> T {
-        let uuid = UUID().uuidString
-        let taskId = TaskId(id: uuid)
-
-        connection.send(
-            TaskStartNotification(
-                taskId: taskId,
-                originId: uuid,
-                eventTime: Date(),
-                message: name,
-                dataKind: TaskStartDataKind(rawValue: name),
-                data: nil
-            )
-        )
-
-        logEntry(.info("## Task start: \(name)", .begin(StructuredLogBegin(title: name))))
-
-        do {
-            let result = try await perform()
-
-            connection.send(
-                TaskFinishNotification(
-                    taskId: taskId,
-                    originId: uuid,
-                    eventTime: Date(),
-                    message: name,
-                    status: StatusCode.ok,
-                    dataKind: TaskFinishDataKind(rawValue: name), data: nil
-                )
-            )
-
-            logEntry(.info(name, .end(StructuredLogEnd())))
-
-            return result
-        } catch let error as CancellationError {
-            connection.send(
-                TaskFinishNotification(
-                    taskId: taskId,
-                    originId: uuid,
-                    eventTime: Date(),
-                    message: "\(name) cancelled",
-                    status: StatusCode.cancelled,
-                    dataKind: TaskFinishDataKind(rawValue: name),
-                    data: nil
-                )
-            )
-
-            logEntry(.info("## Task cancelled: \(name)", .end(StructuredLogEnd())))
-
-            throw error
-        } catch {
-            connection.send(
-                TaskFinishNotification(
-                    taskId: taskId,
-                    originId: uuid,
-                    eventTime: Date(),
-                    message: "\(name) failed: \(error)",
-                    status: StatusCode.error,
-                    dataKind: TaskFinishDataKind(rawValue: name),
-                    data: nil
-                )
-            )
-
-            logEntry(.info("## Task finish: \(name)", .end(StructuredLogEnd())))
-
-            throw error
-        }
+        // connection.send(
+        //     OnBuildLogMessageNotification(
+        //         type: entry.type,
+        //         task: nil,
+        //         originId: nil,
+        //         message: "[xcodebsp] \(entry.message)",
+        //         structure: entry.structure
+        //     )
+        // )
     }
 }
 
@@ -254,18 +180,11 @@ extension BuildServer {
 
         let xcodeProject = try await XcodeProject(
             projectFilePath: projectFilePath,
+            taskLogger: taskLogger,
             logger: self.logEntry(_:)
         )
 
         self.xcodeProject = xcodeProject
-
-        // Task {
-        //     do {
-        //         try await xcodeProject.buildIndex()
-        //     } catch {
-        //         // TODO
-        //     }
-        // }
 
         let languageIds = [Language.swift, .c, .cpp, .objective_c, .objective_cpp]
 
@@ -337,8 +256,6 @@ extension BuildServer {
 
         let buildTargets = try await xcodeProject.loadBuildTargets()
 
-        logEntry(.log("Found \(buildTargets.count) targets"))
-
         return WorkspaceBuildTargetsResponse(targets: buildTargets)
     }
 
@@ -361,8 +278,7 @@ extension BuildServer {
         request: TextDocumentSourceKitOptionsRequest
     ) async throws -> TextDocumentSourceKitOptionsResponse {
         guard state == .running else {
-            throw ResponseError.unknown(
-                "WorkspaceBuildTargetsRequest received while the build server is \(state)")
+            throw ResponseError.unknown("WorkspaceBuildTargetsRequest received while the build server is \(state)")
         }
 
         guard let xcodeProject else {
@@ -370,13 +286,29 @@ extension BuildServer {
         }
 
         guard let fileURL = request.textDocument.uri.fileURL else {
-            fatalError()
+            throw BuildServerError.invalidFileURI(request.textDocument.uri)
         }
 
         let filePath = try AbsolutePath(validating: fileURL.path(percentEncoded: false))
 
         let arguments = try await xcodeProject.loadCompilerArguments(file: filePath, targetIdentifier: request.target)
         return TextDocumentSourceKitOptionsResponse(compilerArguments: arguments)
+    }
+
+    private func handle(
+        request: WorkspaceWaitForBuildSystemUpdatesRequest
+    ) async throws -> VoidResponse {
+        guard state == .running else {
+            throw ResponseError.unknown("WorkspaceBuildTargetsRequest received while the build server is \(state)")
+        }
+
+        guard let xcodeProject else {
+            throw BuildServerError.projectNotInitialized
+        }
+
+        await xcodeProject.waitForUpdates()
+
+        return VoidResponse()
     }
 }
 

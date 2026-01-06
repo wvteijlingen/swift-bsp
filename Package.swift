@@ -31,7 +31,8 @@ let package = Package(
                 .product(name: "Logging", package: "swift-log"),
                 .product(name: "Path", package: "path"),
                 .product(name: "SWBBuildServiceBundle", package: "swift-build"),
-            ]
+            ],
+            swiftSettings: [.enableUpcomingFeature("NonisolatedNonsendingByDefault")]
         ),
         .executableTarget(
             name: "BuildServiceBundle",

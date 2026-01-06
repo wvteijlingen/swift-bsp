@@ -14,6 +14,7 @@ actor XcodeProject {
         try! AbsolutePath(validating: arena.indexDataStoreFolderPath!)
     }
 
+    private let taskLogger: TaskLogger
     private let logger: (LogEntry) -> Void
     private let projectFilePath: AbsolutePath
     private let arena: SWBArenaInfo
@@ -24,14 +25,15 @@ actor XcodeProject {
 
     private var workspaceInfo: (SWBBuildRequest, SWBBuildDescriptionID)?
 
-    init(projectFilePath: AbsolutePath, logger: @escaping (LogEntry) -> Void) async throws {
+    init(projectFilePath: AbsolutePath, taskLogger: TaskLogger, logger: @escaping (LogEntry) -> Void) async throws {
         let xcodeBspFolder = projectFilePath.parentDirectory.appending(components: ".xcodebsp")
 
+        self.taskLogger = taskLogger
         self.projectFilePath = projectFilePath
         self.arena = SWBArenaInfo(root: xcodeBspFolder.appending(component: "arena"), indexEnableDataStore: true)
         self.logger = logger
 
-        logger(.log("Creating session..."))
+        let task = taskLogger.start(title: "Initializing build server")
 
         let service = try await SWBBuildService(connectionMode: .default, variant: .default)
 
@@ -49,9 +51,15 @@ actor XcodeProject {
 
         self.buildServiceSession = try session.get()
 
-        logger(.log("Created session"))
+        taskLogger.finish(id: task)
 
         try await loadProject()
+    }
+
+    func waitForUpdates() async {
+        await workspaceLoadingQueue.async {
+            // No updates are pending once this closure is executed
+        }.valuePropagatingCancellation
     }
 
     // MARK: - Loaders
@@ -67,243 +75,279 @@ actor XcodeProject {
     }
 
     private func loadWorkspace() async throws {
-        logger(.log("Loading workspace '\(projectFilePath.pathString)'..."))
-        defer { logger(.log("Loaded workspace")) }
-
-        try await buildServiceSession.loadWorkspace(containerPath: projectFilePath.pathString)
-        try await buildServiceSession.setSystemInfo(.default())
+        try await taskLogger.log(title: "Loading workspace") { _ in
+            try await buildServiceSession.loadWorkspace(containerPath: projectFilePath.pathString)
+            try await buildServiceSession.setSystemInfo(.default())
+        }
     }
 
     private func loadBasicBuildRequest() async throws -> SWBBuildRequest {
-        logger(.log("Loading build request..."))
-        defer { logger(.log("Loaded build request")) }
+        try await taskLogger.log(title: "Generating build request") { _ in
+            var buildRequest = SWBBuildRequest()
+            buildRequest.buildCommand = .prepareForIndexing(buildOnlyTheseTargets: nil, enableIndexBuildArena: true)
+            buildRequest.parameters.arenaInfo = arena
+            buildRequest.enableIndexBuildArena = true
+            buildRequest.continueBuildingAfterErrors = true
+            buildRequest.parameters.action = "indexbuild"
 
-        var buildRequest = SWBBuildRequest()
-        buildRequest.buildCommand = .prepareForIndexing(buildOnlyTheseTargets: nil, enableIndexBuildArena: true)
-        buildRequest.parameters.arenaInfo = arena
-        buildRequest.enableIndexBuildArena = true
+            var overridesTable = buildRequest.parameters.overrides.commandLine ?? SWBSettingsTable()
+            overridesTable.set(value: "YES", for: "ONLY_ACTIVE_ARCH")
 
-        let workspaceInfo = try await buildServiceSession.workspaceInfo()
+            buildRequest.parameters.overrides.commandLine = overridesTable
 
-        for target in workspaceInfo.targetInfos {
-            buildRequest.add(target: SWBConfiguredTarget(guid: target.guid))
+            let workspaceInfo = try await buildServiceSession.workspaceInfo()
+
+            for target in workspaceInfo.targetInfos {
+                // logger(.info(target.projectName + " -> " + target.targetName + " -> " + target.guid))
+                // if let dynamicTargetVariantGuid = target.dynamicTargetVariantGuid {
+                //     buildRequest.add(target: SWBConfiguredTarget(guid: dynamicTargetVariantGuid))
+                // }
+
+                buildRequest.add(target: SWBConfiguredTarget(guid: target.guid))
+            }
+
+            for targetIndex in buildRequest.configuredTargets.indices {
+                buildRequest.configuredTargets[targetIndex].parameters?.action = "indexbuild"
+
+                var overridesTable =
+                    buildRequest.configuredTargets[targetIndex].parameters?.overrides.commandLine
+                    ?? SWBSettingsTable()
+
+                overridesTable.set(value: "YES", for: "ONLY_ACTIVE_ARCH")
+
+                buildRequest.configuredTargets[targetIndex].parameters?.overrides.commandLine = overridesTable
+            }
+
+            return buildRequest
         }
-
-        return buildRequest
     }
 
     private func loadBuildDescriptionID(buildRequest: SWBBuildRequest) async throws -> SWBBuildDescriptionID {
-        logger(.log("Loading build description ID..."))
-        defer { logger(.log("Loaded build description ID")) }
+        try await taskLogger.log(title: "Generating build description") { _ in
 
-        let operation = try await buildServiceSession.createBuildOperationForBuildDescriptionOnly(
-            request: buildRequest,
-            delegate: self
-        )
+            let operation = try await buildServiceSession.createBuildOperationForBuildDescriptionOnly(
+                request: buildRequest,
+                delegate: self
+            )
 
-        var buildDescriptionID: SWBBuildDescriptionID?
+            var buildDescriptionID: SWBBuildDescriptionID?
 
-        for try await event in try await operation.start() {
-            logEvent(event)
+            for try await event in try await operation.start() {
+                // logEvent(event)
 
-            guard case .reportBuildDescription(let info) = event else {
-                continue
+                guard case .reportBuildDescription(let info) = event else {
+                    continue
+                }
+
+                buildDescriptionID = SWBBuildDescriptionID(info.buildDescriptionID)
             }
 
-            buildDescriptionID = SWBBuildDescriptionID(info.buildDescriptionID)
-        }
+            guard let buildDescriptionID else {
+                throw BuildServerError.cannotLoadBuildDescriptionID
+            }
 
-        guard let buildDescriptionID else {
-            throw BuildServerError.cannotLoadBuildDescriptionID
+            return buildDescriptionID
         }
-
-        return buildDescriptionID
     }
 
     // MARK: - Loaders
 
     func loadBuildTargets() async throws -> [BuildTarget] {
-        guard let (buildRequest, buildDescriptionID) = workspaceInfo else {
-            throw BuildServerError.noWorkspaceInfo
-        }
-
-        let targets = try await buildServiceSession.configuredTargets(
-            buildDescription: buildDescriptionID,
-            buildRequest: buildRequest
-        )
-
-        return try targets.map { targetInfo in
-            //            let tags = try await buildServiceSession.evaluateMacroAsStringList(
-            //                "BUILD_SERVER_PROTOCOL_TARGET_TAGS",
-            //                level: .target(targetInfo.identifier.targetGUID.rawValue),
-            //                buildParameters: buildRequest.parameters,
-            //                overrides: nil
-            //            ).filter {
-            //                !$0.isEmpty
-            //            }.map {
-            //                BuildTargetTag(rawValue: $0)
-            //            }
-
-            let toolchain = targetInfo.toolchain.map { toolchain in
-                DocumentURI(filePath: toolchain.pathString, isDirectory: true)
+        try await taskLogger.log(title: "Loading targets") { reportProgress in
+            guard let (buildRequest, buildDescriptionID) = workspaceInfo else {
+                throw BuildServerError.noWorkspaceInfo
             }
 
-            let uri = try URI(string: "swbuild-target://\(targetInfo.identifier.rawGUID)")
-
-            let dependencies = try targetInfo.dependencies.map { dependency in
-                let uri = try URI(string: "swbuild-target://\(dependency.targetGUID)")
-                return BuildTargetIdentifier(uri: uri)
-            }
-
-            return BuildTarget(
-                id: BuildTargetIdentifier(uri: uri),
-                displayName: targetInfo.name,
-                baseDirectory: nil,
-                tags: [],
-                capabilities: BuildTargetCapabilities(),
-                languageIds: [.c, .cpp, .objective_c, .objective_cpp, .swift],
-                dependencies: dependencies,
-                dataKind: .sourceKit,
-                data: SourceKitBuildTarget(toolchain: toolchain).encodeToLSPAny()
+            let targets = try await buildServiceSession.configuredTargets(
+                buildDescription: buildDescriptionID,
+                buildRequest: buildRequest
             )
+
+            return try await targets.asyncMap { @Sendable targetInfo in
+                let task = taskLogger.start(title: "Loading target: \(targetInfo.name)")
+                defer { taskLogger.finish(id: task) }
+
+                let tags = try await buildServiceSession.evaluateMacroAsStringList(
+                    "BUILD_SERVER_PROTOCOL_TARGET_TAGS",
+                    level: .target(targetInfo.identifier.targetGUID.rawValue),
+                    buildParameters: buildRequest.parameters,
+                    overrides: nil
+                ).filter {
+                    !$0.isEmpty
+                }.map {
+                    BuildTargetTag(rawValue: $0)
+                }
+
+                let toolchain = targetInfo.toolchain.map { toolchain in
+                    DocumentURI(filePath: toolchain.pathString, isDirectory: true)
+                }
+
+                let dependencies = try targetInfo.dependencies.map { dependency in
+                    try BuildTargetIdentifier(configuredTargetIdentifier: dependency)
+                }
+
+                return BuildTarget(
+                    id: try BuildTargetIdentifier(configuredTargetIdentifier: targetInfo.identifier),
+                    displayName: targetInfo.name,
+                    baseDirectory: nil,
+                    tags: tags,
+                    capabilities: BuildTargetCapabilities(),
+                    languageIds: [.c, .cpp, .objective_c, .objective_cpp, .swift],
+                    dependencies: dependencies,
+                    dataKind: .sourceKit,
+                    data: SourceKitBuildTarget(toolchain: toolchain).encodeToLSPAny()
+                )
+            }
         }
     }
 
     func loadBuildSources(targetIdentifiers: [BuildTargetIdentifier]) async throws -> [SourcesItem] {
-        guard let (buildRequest, buildDescriptionID) = workspaceInfo else {
-            throw BuildServerError.noWorkspaceInfo
-        }
-
-        let configuredTargetIdentifiers = targetIdentifiers.map(\.configuredTargetIdentifier)
-
-        let response = try await buildServiceSession.sources(
-            of: configuredTargetIdentifiers,
-            buildDescription: buildDescriptionID,
-            buildRequest: buildRequest
-        )
-
-        return try response.compactMap { swbSourcesItem -> SourcesItem? in
-            let sources = swbSourcesItem.sourceFiles.map { sourceFile in
-                return SourceItem(
-                    uri: DocumentURI(URL(filePath: sourceFile.path.pathString)),
-                    kind: .file,
-                    generated: false,
-                    dataKind: .sourceKit,
-                    data: SourceKitSourceItemData(
-                        language: sourceFile.language.flatMap { Language($0) },
-                        outputPath: sourceFile.indexOutputPath
-                    ).encodeToLSPAny()
-                )
+        try await taskLogger.log(title: "Loading build sources") { reportProgress in
+            guard let (buildRequest, buildDescriptionID) = workspaceInfo else {
+                throw BuildServerError.noWorkspaceInfo
             }
 
-            let uri = try URI(string: "swbuild-target://\(swbSourcesItem.configuredTarget.targetGUID.rawValue)")
+            let configuredTargetIdentifiers = try targetIdentifiers.map { try $0.configuredTargetIdentifier }
 
-            return SourcesItem(
-                target: BuildTargetIdentifier(uri: uri),
-                sources: sources
+            let response = try await buildServiceSession.sources(
+                of: configuredTargetIdentifiers,
+                buildDescription: buildDescriptionID,
+                buildRequest: buildRequest
             )
+
+            return try response.map { swbSourcesItem -> SourcesItem in
+                let sources = swbSourcesItem.sourceFiles.map { sourceFile in
+                    let task = taskLogger.start(title: "Loading build source: \(sourceFile.path.pathString)")
+                    defer { taskLogger.finish(id: task) }
+
+                    return SourceItem(
+                        uri: DocumentURI(URL(filePath: sourceFile.path.pathString)),
+                        kind: .file,
+                        generated: false,
+                        dataKind: .sourceKit,
+                        data: SourceKitSourceItemData(
+                            language: sourceFile.language.flatMap { Language($0) },
+                            outputPath: sourceFile.indexOutputPath
+                        ).encodeToLSPAny()
+                    )
+                }
+
+                return SourcesItem(
+                    target: try BuildTargetIdentifier(configuredTargetIdentifier: swbSourcesItem.configuredTarget),
+                    sources: sources
+                )
+            }
         }
     }
 
     func loadCompilerArguments(file: AbsolutePath, targetIdentifier: BuildTargetIdentifier) async throws -> [String] {
-        guard let (buildRequest, buildDescriptionID) = workspaceInfo else {
-            throw BuildServerError.noWorkspaceInfo
-        }
+        try await taskLogger.log(title: "Loading compiler arguments") { _ in
+            guard let (buildRequest, buildDescriptionID) = workspaceInfo else {
+                throw BuildServerError.noWorkspaceInfo
+            }
 
-        return try await buildServiceSession.indexCompilerArguments(
-            of: SwiftBuild.AbsolutePath(validating: file.pathString),
-            in: targetIdentifier.configuredTargetIdentifier,
-            buildDescription: buildDescriptionID,
-            buildRequest: buildRequest
-        )
+            let task = taskLogger.start(title: "Loading compiler arguments: \(file.pathString)")
+            defer { taskLogger.finish(id: task) }
+
+            return try await buildServiceSession.indexCompilerArguments(
+                of: SwiftBuild.AbsolutePath(validating: file.pathString),
+                in: targetIdentifier.configuredTargetIdentifier,
+                buildDescription: buildDescriptionID,
+                buildRequest: buildRequest
+            )
+        }
     }
 
     // MARK: - Mutators
 
     func prepareTargets(targets: [BuildTargetIdentifier]) async throws {
-        try await preparationQueue.asyncThrowing {
+        try await taskLogger.log(title: "Preparing targets") { _ in
+            try await preparationQueue.asyncThrowing {
+                guard let buildRequest = self.workspaceInfo?.0 else {
+                    throw BuildServerError.noWorkspaceInfo
+                }
+
+                var request = buildRequest
+
+                let targetGUIDs = try targets.map {
+                    try $0.configuredTargetIdentifier.targetGUID.rawValue
+                }
+
+                request.buildCommand = .prepareForIndexing(
+                    buildOnlyTheseTargets: targetGUIDs,
+                    enableIndexBuildArena: true
+                )
+
+                let buildOperation = try await self.buildServiceSession.createBuildOperation(
+                    request: request,
+                    delegate: self
+                )
+
+                let events = try await buildOperation.start()
+
+                self.logEvents(events)
+
+                await buildOperation.waitForCompletion()
+            }.valuePropagatingCancellation
+        }
+    }
+
+    func buildTarget(target: String) async throws {
+        try await taskLogger.log(title: "Building target") { _ in
             guard let buildRequest = self.workspaceInfo?.0 else {
                 throw BuildServerError.noWorkspaceInfo
             }
 
             var request = buildRequest
 
-            let targetGUIDs = targets.map {
-                $0.configuredTargetIdentifier.targetGUID.rawValue
-            }
+            request.buildCommand = .build(style: .buildOnly)
+            request.parameters.action = "build"
+            request.parameters.configurationName = "Debug"
 
-            request.buildCommand = .prepareForIndexing(
-                buildOnlyTheseTargets: targetGUIDs, enableIndexBuildArena: true)
+            request.add(target: SWBConfiguredTarget(guid: target))
 
-            let buildOperation = try await self.buildServiceSession.createBuildOperation(
-                request: request,
-                delegate: self)
-
+            let buildOperation = try await buildServiceSession.createBuildOperation(request: request, delegate: self)
             let events = try await buildOperation.start()
-            await self.logEvents(events)
+
+            logEvents(events)
+
             await buildOperation.waitForCompletion()
-        }.valuePropagatingCancellation
-    }
-
-    func buildIndex() async throws {
-        // TODO
-    }
-
-    func buildTarget(target: String) async throws {
-        guard let buildRequest = self.workspaceInfo?.0 else {
-            throw BuildServerError.noWorkspaceInfo
         }
-
-        var request = buildRequest
-
-        request.buildCommand = .build(style: .buildOnly)
-        request.parameters.action = "build"
-        request.parameters.configurationName = "Debug"
-
-        request.add(target: SWBConfiguredTarget(guid: target))
-
-        let buildOperation = try await buildServiceSession.createBuildOperation(request: request, delegate: self)
-        let events = try await buildOperation.start()
-
-        for await event in events {
-            print(event)
-        }
-
-        await buildOperation.waitForCompletion()
     }
 
     func buildSources(paths: [AbsolutePath], target: String) async throws {
-        guard let buildRequest = self.workspaceInfo?.0 else {
-            throw BuildServerError.noWorkspaceInfo
+        try await taskLogger.log(title: "Building sources") { _ in
+            guard let buildRequest = self.workspaceInfo?.0 else {
+                throw BuildServerError.noWorkspaceInfo
+            }
+
+            var request = buildRequest
+
+            request.buildCommand = .buildFiles(paths: paths.map(\.pathString), action: .compile)
+            request.parameters.action = "build"
+            request.parameters.configurationName = "Debug"
+            //        request.parameters.activeRunDestination = SWBRunDestinationInfo(
+            //            platform: "iphonesimulator",
+            //            sdk: "iphonesimulator26.1",
+            //            sdkVariant: nil,
+            //            targetArchitecture: "arm64",
+            //            supportedArchitectures: [],
+            //            disableOnlyActiveArch: false,
+            //            hostTargetedPlatform: nil
+            //        )
+
+            request.add(target: SWBConfiguredTarget(guid: target))
+
+            let buildOperation = try await buildServiceSession.createBuildOperation(request: request, delegate: self)
+            let events = try await buildOperation.start()
+            for await event in events {
+                print(event)
+            }
+
+            await buildOperation.waitForCompletion()
+
+            print("done")
         }
-
-        var request = buildRequest
-
-        request.buildCommand = .buildFiles(paths: paths.map(\.pathString), action: .compile)
-        request.parameters.action = "build"
-        request.parameters.configurationName = "Debug"
-        //        request.parameters.activeRunDestination = SWBRunDestinationInfo(
-        //            platform: "iphonesimulator",
-        //            sdk: "iphonesimulator26.1",
-        //            sdkVariant: nil,
-        //            targetArchitecture: "arm64",
-        //            supportedArchitectures: [],
-        //            disableOnlyActiveArch: false,
-        //            hostTargetedPlatform: nil
-        //        )
-
-        request.add(target: SWBConfiguredTarget(guid: target))
-
-        let buildOperation = try await buildServiceSession.createBuildOperation(request: request, delegate: self)
-        let events = try await buildOperation.start()
-        for await event in events {
-            print(event)
-        }
-
-        await buildOperation.waitForCompletion()
-
-        print("done")
-
     }
 }
 
@@ -394,9 +438,11 @@ extension XcodeProject {
         }
     }
 
-    private func logEvents(_ events: AsyncStream<SwiftBuildMessage>) async {
-        for try await event in events {
-            logEvent(event)
+    private func logEvents(_ events: AsyncStream<SwiftBuildMessage>) {
+        Task {
+            for try await event in events {
+                logEvent(event)
+            }
         }
     }
 }
