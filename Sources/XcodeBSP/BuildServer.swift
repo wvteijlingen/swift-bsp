@@ -25,8 +25,6 @@ final actor BuildServer: QueueBasedMessageHandler {
     private let onExit: (_ code: Int32) -> Void
     private let projectFilePath: AbsolutePath
     private let connection: JSONRPCConnection
-    private let workspaceLoadingQueue = AsyncQueue<Serial>()
-    private let preparationQueue = AsyncQueue<Serial>()
     private let logger: Logger
     private let taskLogger: TaskLogger
 
