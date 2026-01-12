@@ -246,6 +246,7 @@ extension BuildServer {
         let filePath = try AbsolutePath(validating: fileURL.path(percentEncoded: false))
 
         let arguments = try await xcodeProject.loadCompilerArguments(file: filePath, targetIdentifier: request.target)
+        logger.info("Compiler arguments: \(arguments)")
         return TextDocumentSourceKitOptionsResponse(compilerArguments: arguments)
     }
 

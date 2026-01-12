@@ -12,75 +12,67 @@ struct TaskLogger: Sendable {
         self.logger = logger
     }
 
-    func start(title: String) -> TaskId {
-        let id = generateTaskId()
-        startTask(id: id, title: title)
+    func start(id: String? = nil, title: String) -> TaskId {
+        let id = id.map { TaskId(id: String($0)) } ?? TaskId(id: UUID().uuidString)
+        let title = "[xcode-bsp] \(title)"
+        let notification = TaskStartNotification(taskId: id, data: WorkDoneProgressTask(title: title).encodeToLSPAny())
+
+        connection.send(notification)
+        logger.info("Start task \(id.id): \(title)")
+
         return id
     }
 
-    func finish(id: TaskId, status: StatusCode) {
-        finishTask(id: id, status: status)
+    func finish(id: TaskId, status: StatusCode, error: Error? = nil) {
+        let message = error.map { "Error: \($0)" }
+        let notification = TaskFinishNotification(taskId: id, message: message, status: status)
+
+        connection.send(notification)
+
+        if let message {
+            logger.info("Finish task \(id.id): \(status), \(message)")
+        } else {
+            logger.info("Finish task \(id.id): \(status)")
+        }
     }
 
-    func start(id: LosslessStringConvertible, title: String) {
-        let id = TaskId(id: String(id))
-        startTask(id: id, title: title)
+    func finish(id: String, status: StatusCode, error: Error? = nil) {
+        finish(id: TaskId(id: id), status: status, error: error)
     }
 
-    func finish(id: LosslessStringConvertible, status: StatusCode) {
-        let id = TaskId(id: String(id))
-        finishTask(id: id, status: status)
-    }
-
-    nonisolated(nonsending) func log<T>(title: String, perform: () async throws -> T) async rethrows -> T {
-        let id = generateTaskId()
-        startTask(id: id, title: title)
+    nonisolated(nonsending) func log<T>(
+        id: String? = nil,
+        title: String,
+        perform: () async throws -> T
+    ) async rethrows -> T {
+        let id = start(id: id, title: title)
 
         do {
             let result = try await perform()
-            finishTask(id: id, status: .ok)
+            finish(id: id, status: .ok)
             return result
         } catch let error as CancellationError {
-            finishTask(id: id, status: .cancelled)
+            finish(id: id, status: .cancelled)
             throw error
         } catch {
-            finishTask(id: id, status: .error)
+            finish(id: id, status: .error)
             throw error
         }
     }
 
-    func log<T>(title: String, perform: () throws -> T) rethrows -> T {
-        let id = generateTaskId()
-        startTask(id: id, title: title)
+    func log<T>(id: String? = nil, title: String, perform: () throws -> T) rethrows -> T {
+        let id = start(id: id, title: title)
 
         do {
             let result = try perform()
-            finishTask(id: id, status: .ok)
+            finish(id: id, status: .ok)
             return result
         } catch let error as CancellationError {
-            finishTask(id: id, status: .cancelled)
+            finish(id: id, status: .cancelled)
             throw error
         } catch {
-            finishTask(id: id, status: .error, error: error)
+            finish(id: id, status: .error, error: error)
             throw error
         }
-    }
-
-    private func generateTaskId() -> TaskId {
-        let uuid = UUID().uuidString
-        return TaskId(id: uuid)
-    }
-
-    private func startTask(id: TaskId, title: String) {
-        let notification = TaskStartNotification(taskId: id, data: WorkDoneProgressTask(title: title).encodeToLSPAny())
-        connection.send(notification)
-        logger.info("Start task \(id.id): \(title)")
-    }
-
-    private func finishTask(id: TaskId, status: StatusCode, error: Error? = nil) {
-        let message = error.map { "Error: \($0)" }
-        let notification = TaskFinishNotification(taskId: id, message: message, status: status)
-        connection.send(notification)
-        logger.info("Finish task \(id.id): \(status), \(message, default: "no message")")
     }
 }
