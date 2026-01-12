@@ -21,29 +21,29 @@ struct EventLogger {
             taskLogger.finish(id: info.planningOperationID, status: .ok)
         case .buildStarted(let info):
             logger.info(
-                "Build started: baseDirectory='\(info.baseDirectory)', derivedDataPath='\(info.derivedDataPath, default: "nil")'"
+                "Build started: baseDirectory='\(info.baseDirectory.pathString)', derivedDataPath='\(info.derivedDataPath, default: "nil")'"
             )
         case .buildDiagnostic(let info):
-            logger.info("Build diagnostic: message='\(info.message)'")
+            logger.info("Build diagnostic: \(info.message)")
         case .buildCompleted(let info):
             switch info.result {
             case .ok:
-                logger.info("Build complete")
+                logger.info("########## Build complete ##########")
             case .failed:
-                logger.error("Build failed")
+                logger.error("########## Build failed ##########")
             case .cancelled:
-                logger.warning("Build cancelled")
+                logger.warning("########## Build cancelled ##########")
             case .aborted:
-                logger.warning("Build aborted")
+                logger.warning("########## Build aborted ##########")
             }
         case .preparationComplete(_):
-            logger.info("Build Preparation Complete")
+            logger.info("Build preparation complete")
         case .didUpdateProgress(let info):
             logger.info("Progress: \(info.message) \(info.percentComplete)%")
         case .taskStarted(let info):
             _ = taskLogger.start(id: String(info.taskID), title: "[swift-build] " + info.executionDescription)
         case .taskDiagnostic(let info):
-            logger.info("Task Diagnostic: targetID='\(info.taskID)' message='\(info.message)'")
+            logger.info("Task \(info.taskID): \(info.message)")
         case .taskComplete(let info):
             switch info.result {
             case .success:
@@ -54,7 +54,7 @@ struct EventLogger {
                 taskLogger.finish(id: String(info.taskID), status: .cancelled)
             }
         case .targetDiagnostic(let info):
-            logger.info("Target Diagnostic: targetID='\(info.targetID)', message='\(info.message)'")
+            logger.info("Target \(info.targetID): \(info.message)")
         case .diagnostic(let info):
             logger.info("Diagnostic: \(info.message)")
         case .backtraceFrame:
@@ -62,27 +62,29 @@ struct EventLogger {
         case .reportPathMap:
             logger.info(".reportPathMap")
         case .reportBuildDescription(let info):
-            logger.info(".reportBuildDescription: buildDescriptionID='\(info.buildDescriptionID)'")
+            logger.info("Build description reported: \(info.buildDescriptionID)")
         case .preparedForIndex(let info):
-            logger.info(".preparedForIndex: targetGUID='\(info.targetGUID)'")
+            logger.info("Target \(info.targetGUID): Prepared for index")
         case .buildOutput(let info):
-            logger.info(".buildOutput: data='\(info.data)'")
+            logger.info("Build output: \(info.data)")
         case .targetStarted(let info):
             logger.info(
-                ".targetStarted: targetName='\(info.targetName)', targetID='\(info.targetID)', targetGUID='\(info.targetGUID)', name='\(info.targetName)'"
+                "Target \(info.targetID): Started \(info.targetName) - \(info.targetGUID)"
             )
         case .targetComplete(let info):
-            logger.info(".targetComplete: targetID='\(info.targetID)'")
+            logger.info("Target \(info.targetID): Complete")
         case .targetOutput(let info):
-            logger.info(".targetOutput: targetID='\(info.targetID)', data=\(info.data)")
+            logger.info("Target \(info.targetID): \(info.data)")
         case .targetUpToDate(let info):
-            logger.info(".targetUpToDate: guid='\(info.guid)'")
+            logger.info("Target \(info.guid): Up to date")
         case .taskUpToDate(let info):
-            logger.info(".taskUpToDate: targetID='\(info.targetID, default: "nil")'")
+            logger.info("Task up to date: \(info.taskSignature)")
         case .taskOutput(let info):
-            logger.info(".taskOutput: id='\(info.taskID)', data='\(info.data)'")
-        case .output:
-            logger.info(".output")
+            logger.info("Task \(info.taskID): \(info.data)")
+        case .output(let info):
+            if let string = String(data: info.data, encoding: .utf8) {
+                logger.info(string)
+            }
         }
     }
 }

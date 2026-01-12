@@ -32,10 +32,6 @@ actor XcodeProject {
 
         let service = try await SWBBuildService(connectionMode: .default, variant: .default)
 
-        logger.info("Clearing caches...")
-        try await service.clearAllCaches()
-        logger.info("Cleared caches")
-
         let (session, diagnosticInfo) = await service.createSession(
             name: projectFilePath.pathString,
             developerPath: "/Applications/Xcode.app/Contents/Developer",

@@ -24,16 +24,14 @@ struct TaskLogger: Sendable {
     }
 
     func finish(id: TaskId, status: StatusCode, error: Error? = nil) {
-        let message = error.map { "Error: \($0)" }
-        let notification = TaskFinishNotification(taskId: id, message: message, status: status)
+        let errorMessage = error.map { "Error: \($0.localizedDescription)" }
+        let notification = TaskFinishNotification(taskId: id, message: errorMessage, status: status)
 
         connection.send(notification)
 
-        if let message {
-            logger.info("Finish task \(id.id): \(status), \(message)")
-        } else {
-            logger.info("Finish task \(id.id): \(status)")
-        }
+        let logLevel = status == .ok ? Logger.Level.info : Logger.Level.error
+        let logMessage = ["\(status)", errorMessage].compactMap { $0 }.joined(separator: ", ")
+        logger.log(logLevel, message: "Finish task \(id.id): \(logMessage)")
     }
 
     func finish(id: String, status: StatusCode, error: Error? = nil) {
@@ -55,7 +53,7 @@ struct TaskLogger: Sendable {
             finish(id: id, status: .cancelled)
             throw error
         } catch {
-            finish(id: id, status: .error)
+            finish(id: id, status: .error, error: error)
             throw error
         }
     }

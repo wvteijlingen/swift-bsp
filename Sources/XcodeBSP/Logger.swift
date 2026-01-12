@@ -2,17 +2,31 @@ import Foundation
 import ToolsProtocolsSwiftExtensions
 
 extension Logger {
-    enum Level: String {
+    enum Level: String, Comparable {
         case info, warning, error
+
+        private var severity: Int {
+            switch self {
+            case .info: 0
+            case .warning: 1
+            case .error: 2
+            }
+        }
+
+        static func < (lhs: Level, rhs: Level) -> Bool {
+            lhs.severity < rhs.severity
+        }
     }
 }
 
 struct Logger {
+    private let queque = AsyncQueue<Serial>()
     private let fileURL: URL
-    public let queque = AsyncQueue<Serial>()
+    private let minLevel: Level
 
-    public init(fileURL: URL) {
+    public init(fileURL: URL, minLevel: Level) {
         self.fileURL = fileURL
+        self.minLevel = minLevel
     }
 
     func info(_ message: Sendable) {
@@ -28,6 +42,8 @@ struct Logger {
     }
 
     func log(_ level: Level, message: Sendable) {
+        guard level >= minLevel else { return }
+
         queque.async {
             let date = Date().formatted(
                 .dateTime
