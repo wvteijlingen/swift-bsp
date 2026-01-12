@@ -5,7 +5,7 @@ import LanguageServerProtocolTransport
 import Path
 import ToolsProtocolsSwiftExtensions
 
-enum State {
+private enum State {
     case waitingForInitializeRequest
     case waitingForInitializedNotification
     case running
@@ -27,10 +27,12 @@ final actor BuildServer: QueueBasedMessageHandler {
     private let connection: JSONRPCConnection
     private let workspaceLoadingQueue = AsyncQueue<Serial>()
     private let preparationQueue = AsyncQueue<Serial>()
+    private let logger: Logger
     private let taskLogger: TaskLogger
 
-    init(projectFilePath: AbsolutePath, onExit: @escaping (_ code: Int32) -> Void) {
+    init(projectFilePath: AbsolutePath, logger: Logger, onExit: @escaping (_ code: Int32) -> Void) {
         self.projectFilePath = projectFilePath
+        self.logger = logger
         self.onExit = onExit
         self.connection = JSONRPCConnection(
             name: "XcodeBSP",
@@ -40,7 +42,8 @@ final actor BuildServer: QueueBasedMessageHandler {
             inputMirrorFile: nil,
             outputMirrorFile: nil
         )
-        self.taskLogger = TaskLogger(connection: self.connection)
+
+        self.taskLogger = TaskLogger(connection: self.connection, logger: logger)
     }
 
     package func start() {
@@ -53,7 +56,7 @@ final actor BuildServer: QueueBasedMessageHandler {
     }
 
     func handle(notification: some NotificationType) {
-        logEntry(.log("[Receive] Notification - \(notification)"))
+        logger.info("[Receive] Notification - \(notification)")
 
         Task {
             switch notification {
@@ -63,22 +66,22 @@ final actor BuildServer: QueueBasedMessageHandler {
                 onExit(state == .shutdown ? 0 : 1)
             case _ as OnBuildInitializedNotification:
                 state = .running
-            case _ as OnBuildLogMessageNotification:
-                break
-            case _ as OnBuildTargetDidChangeNotification:
-                break
+            // case _ as OnBuildLogMessageNotification:
+            //     break
+            // case _ as OnBuildTargetDidChangeNotification:
+            //     break
             case let notification as OnWatchedFilesDidChangeNotification:
                 try await handle(notification: notification)
-            case _ as FileOptionsChangedNotification:
-                break
-            case _ as TaskFinishNotification:
-                break
-            case _ as TaskProgressNotification:
-                break
-            case _ as TaskStartNotification:
-                break
+            // case _ as FileOptionsChangedNotification:
+            //     break
+            // case _ as TaskFinishNotification:
+            //     break
+            // case _ as TaskProgressNotification:
+            //     break
+            // case _ as TaskStartNotification:
+            //     break
             default:
-                break
+                logger.error("Unhandled notification type '\(notification.self)'")
             }
         }
     }
@@ -87,76 +90,63 @@ final actor BuildServer: QueueBasedMessageHandler {
         request: Request,
         id: RequestID,
         reply: @escaping @Sendable (LSPResult<Request.Response>) -> Void
-    ) where Request: RequestType {
-        logEntry(.log("[Receive] Request - \(id) - \(request)"))
+    ) async where Request: RequestType {
+        logger.info("[Receive] Request - \(id) - \(request)")
 
         let requestAndReply = RequestAndReply(request) { response in
-            Task {
-                await self.logEntry(.log("[Send] \(response)"))
-            }
+            self.logger.info("[Send] \(response)")
             reply(response)
         }
 
-        Task {
-            switch requestAndReply {
-            case let req as RequestAndReply<InitializeBuildRequest>:
-                await req.reply {
-                    try await handle(request: req.params)
+        if !(requestAndReply.params is InitializeBuildRequest) {
+            let state = self.state
+            guard state == .running else {
+                await requestAndReply.reply {
+                    throw ResponseError.unknown("Request received while the build server is \(state)")
                 }
-
-            case let req as RequestAndReply<WorkspaceBuildTargetsRequest>:
-                await req.reply {
-                    try await handle(request: req.params)
-                }
-
-            case let req as RequestAndReply<BuildShutdownRequest>:
-                await req.reply {
-                    try await handle(request: req.params)
-                }
-
-            case let req as RequestAndReply<BuildTargetSourcesRequest>:
-                await req.reply {
-                    try await handle(request: req.params)
-                }
-
-            case let req as RequestAndReply<WorkspaceWaitForBuildSystemUpdatesRequest>:
-                await req.reply {
-                    VoidResponse()
-                }
-
-            case let req as RequestAndReply<BuildTargetPrepareRequest>:
-                await req.reply {
-                    try await handle(request: req.params)
-                }
-
-            case let req as RequestAndReply<TextDocumentSourceKitOptionsRequest>:
-                await req.reply {
-                    try await handle(request: req.params)
-                }
-
-            case let req as RequestAndReply<WorkspaceWaitForBuildSystemUpdatesRequest>:
-                await req.reply {
-                    try await handle(request: req.params)
-                }
-
-            default:
-                reply(.failure(.requestNotImplemented(Request.self)))
+                return
             }
         }
-    }
 
-    private func logEntry(_ entry: LogEntry) {
-        logger.log(level: entry.type, entry.message)
+        switch requestAndReply {
+        case let req as RequestAndReply<BuildShutdownRequest>:
+            await req.reply {
+                try await handle(request: req.params)
+            }
 
-        // connection.send(
-        //     OnBuildLogMessageNotification(
-        //         type: entry.type,
-        //         task: nil,
-        //         originId: nil,
-        //         message: "[xcodebsp] \(entry.message)",
-        //         structure: entry.structure
-        //     )
-        // )
+        case let req as RequestAndReply<BuildTargetPrepareRequest>:
+            await req.reply {
+                try await handle(request: req.params)
+            }
+
+        case let req as RequestAndReply<BuildTargetSourcesRequest>:
+            await req.reply {
+                try await handle(request: req.params)
+            }
+
+        case let req as RequestAndReply<InitializeBuildRequest>:
+            await req.reply {
+                try await handle(request: req.params)
+            }
+
+        case let req as RequestAndReply<TextDocumentSourceKitOptionsRequest>:
+            await req.reply {
+                try await handle(request: req.params)
+            }
+
+        case let req as RequestAndReply<WorkspaceBuildTargetsRequest>:
+            await req.reply {
+                try await handle(request: req.params)
+            }
+
+        case let req as RequestAndReply<WorkspaceWaitForBuildSystemUpdatesRequest>:
+            await req.reply {
+                try await handle(request: req.params)
+            }
+
+        default:
+            reply(.failure(.requestNotImplemented(Request.self)))
+        }
     }
 }
 
@@ -181,46 +171,12 @@ extension BuildServer {
         let xcodeProject = try await XcodeProject(
             projectFilePath: projectFilePath,
             taskLogger: taskLogger,
-            logger: self.logEntry(_:)
+            logger: logger
         )
 
         self.xcodeProject = xcodeProject
-
-        let languageIds = [Language.swift, .c, .cpp, .objective_c, .objective_cpp]
-
         state = .waitingForInitializedNotification
-
-        return await InitializeBuildResponse(
-            displayName: "xcode-bsp",
-            version: "0.0.1",
-            bspVersion: "2.2.0",
-            capabilities:
-                BuildServerCapabilities(
-                    compileProvider: CompileProvider(languageIds: languageIds),
-                    testProvider: TestProvider(languageIds: languageIds),
-                    runProvider: RunProvider(languageIds: languageIds),
-                    debugProvider: nil,
-                    inverseSourcesProvider: true,
-                    dependencySourcesProvider: true,
-                    resourcesProvider: true,
-                    outputPathsProvider: true,
-                    buildTargetChangedProvider: true,
-                    jvmRunEnvironmentProvider: true,
-                    jvmTestEnvironmentProvider: true,
-                    cargoFeaturesProvider: true,
-                    canReload: true,
-                    jvmCompileClasspathProvider: true
-                ),
-            dataKind: .sourceKit,
-            data: SourceKitInitializeBuildResponseData(
-                indexDatabasePath: xcodeProject.indexDatabasePath.pathString,
-                indexStorePath: xcodeProject.indexStorePath.pathString,
-                outputPathsProvider: false,
-                prepareProvider: false,
-                sourceKitOptionsProvider: true,
-                watchers: nil
-            ).encodeToLSPAny()
-        )
+        return await xcodeProject.initialize()
     }
 
     private func handle(request: BuildShutdownRequest) async throws -> VoidResponse {
@@ -251,8 +207,6 @@ extension BuildServer {
         guard let xcodeProject else {
             throw BuildServerError.projectNotInitialized
         }
-
-        logEntry(.log("Finding build targets..."))
 
         let buildTargets = try await xcodeProject.loadBuildTargets()
 
@@ -298,10 +252,6 @@ extension BuildServer {
     private func handle(
         request: WorkspaceWaitForBuildSystemUpdatesRequest
     ) async throws -> VoidResponse {
-        guard state == .running else {
-            throw ResponseError.unknown("WorkspaceBuildTargetsRequest received while the build server is \(state)")
-        }
-
         guard let xcodeProject else {
             throw BuildServerError.projectNotInitialized
         }
