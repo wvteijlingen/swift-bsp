@@ -20,7 +20,7 @@ struct EventLogger {
         case .planningOperationCompleted(let info):
             taskLogger.finish(id: info.planningOperationID, status: .ok)
         case .buildStarted(let info):
-            logger.info(
+            logger.debug(
                 "Build started: baseDirectory='\(info.baseDirectory.pathString)', derivedDataPath='\(info.derivedDataPath, default: "nil")'"
             )
         case .buildDiagnostic(let info):
@@ -37,13 +37,13 @@ struct EventLogger {
                 logger.warning("########## Build aborted ##########")
             }
         case .preparationComplete(_):
-            logger.info("Build preparation complete")
+            logger.debug("Build preparation complete")
         case .didUpdateProgress(let info):
-            logger.info("Progress: \(info.message) \(info.percentComplete)%")
+            logger.debug("Progress: \(info.message) \(info.percentComplete)%")
         case .taskStarted(let info):
             _ = taskLogger.start(id: String(info.taskID), title: "[swift-build] " + info.executionDescription)
         case .taskDiagnostic(let info):
-            logger.info("Task \(info.taskID): \(info.message)")
+            logger.debug("Task \(info.taskID): \(info.message)")
         case .taskComplete(let info):
             switch info.result {
             case .success:
@@ -54,33 +54,33 @@ struct EventLogger {
                 taskLogger.finish(id: String(info.taskID), status: .cancelled)
             }
         case .targetDiagnostic(let info):
-            logger.info("Target \(info.targetID): \(info.message)")
+            logger.debug("Target \(info.targetID): \(info.message)")
         case .diagnostic(let info):
-            logger.info("Diagnostic: \(info.message)")
+            logger.debug("Diagnostic: \(info.message)")
         case .backtraceFrame:
-            logger.info(".backtraceFrame")
+            logger.debug(".backtraceFrame")
         case .reportPathMap:
-            logger.info(".reportPathMap")
+            logger.debug(".reportPathMap")
         case .reportBuildDescription(let info):
-            logger.info("Build description reported: \(info.buildDescriptionID)")
+            logger.debug("Build description reported: \(info.buildDescriptionID)")
         case .preparedForIndex(let info):
-            logger.info("Target \(info.targetGUID): Prepared for index")
+            logger.debug("Target \(info.targetGUID): Prepared for index")
         case .buildOutput(let info):
-            logger.info("Build output: \(info.data)")
+            logger.debug("Build output: \(info.data)")
         case .targetStarted(let info):
-            logger.info(
+            logger.debug(
                 "Target \(info.targetID): Started \(info.targetName) - \(info.targetGUID)"
             )
         case .targetComplete(let info):
-            logger.info("Target \(info.targetID): Complete")
+            logger.debug("Target \(info.targetID): Complete")
         case .targetOutput(let info):
-            logger.info("Target \(info.targetID): \(info.data)")
+            logger.debug("Target \(info.targetID): \(info.data)")
         case .targetUpToDate(let info):
-            logger.info("Target \(info.guid): Up to date")
+            logger.debug("Target \(info.guid): Up to date")
         case .taskUpToDate(let info):
-            logger.info("Task up to date: \(info.taskSignature)")
+            logger.debug("Task up to date: \(info.taskSignature)")
         case .taskOutput(let info):
-            logger.info("Task \(info.taskID): \(info.data)")
+            logger.debug("Task \(info.taskID): \(info.data)")
         case .output(let info):
             if let string = String(data: info.data, encoding: .utf8) {
                 logger.info(string)

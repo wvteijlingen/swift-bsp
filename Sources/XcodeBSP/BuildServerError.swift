@@ -2,11 +2,28 @@ import BuildServerProtocol
 import Foundation
 import SwiftBuild
 
-enum BuildServerError: Error {
+enum BuildServerError: Error, LocalizedError {
     case projectNotInitialized
     case cannotLoadBuildDescriptionID
     case noWorkspaceInfo
     case invalidFileURI(URI)
-    case cannotCreateBuiltTargetIdentifier(from: SWBConfiguredTargetIdentifier)
+    case cannotCreateBuildTargetIdentifier(from: SWBConfiguredTargetIdentifier)
     case invalidTargetIdentifier(URL)
+
+    var errorDescription: String? {
+        switch self {
+        case .cannotCreateBuildTargetIdentifier(let from):
+            "Cannot create build target identifier from '\(from)'"
+        case .cannotLoadBuildDescriptionID:
+            "Cannot load build description ID"
+        case .invalidFileURI(let uri):
+            "Invalid file URI: \(uri.arbitrarySchemeURL)"
+        case .invalidTargetIdentifier(let identifier):
+            "Invalid target identifier: \(identifier)"
+        case .noWorkspaceInfo:
+            "No workspace info available"
+        case .projectNotInitialized:
+            "Project not initialized"
+        }
+    }
 }

@@ -7,7 +7,7 @@ import SwiftBuild
 struct CLI: AsyncParsableCommand {
     @Option var project: String
     @Flag var persistLog = false
-    @Flag var verbose = false
+    @Option var logLevel: Logger.Level = .warning
 
     @MainActor
     func run() async throws {
@@ -19,7 +19,7 @@ struct CLI: AsyncParsableCommand {
             try? FileManager.default.removeItem(at: logFileURL)
         }
 
-        let logger = Logger(fileURL: logFileURL, minLevel: verbose ? .info : .warning)
+        let logger = Logger(fileURL: logFileURL, minLevel: logLevel)
 
         logger.info("---------------------------")
         logger.info("Starting Xcode Build Server")
@@ -32,7 +32,8 @@ struct CLI: AsyncParsableCommand {
                 projectFilePath: projectFilePath,
                 logger: logger,
                 onExit: { @Sendable code in
-                    logger.info("Exiting with code \(code)")
+                    let logLevel = code == 0 ? Logger.Level.info : Logger.Level.error
+                    logger.log(logLevel, message: "Exiting with code \(code)")
                     _Exit(code)
                 })
 

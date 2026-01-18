@@ -89,10 +89,10 @@ final actor BuildServer: QueueBasedMessageHandler {
         id: RequestID,
         reply: @escaping @Sendable (LSPResult<Request.Response>) -> Void
     ) async where Request: RequestType {
-        logger.info("[Receive] Request - \(id) - \(request)")
+        logger.info("[Receive] Request \(id) - \(request)")
 
         let requestAndReply = RequestAndReply(request) { response in
-            self.logger.info("[Send] \(response)")
+            self.logger.info("[Send] \(id) - \(response)")
             reply(response)
         }
 
@@ -244,7 +244,6 @@ extension BuildServer {
         let filePath = try AbsolutePath(validating: fileURL.path(percentEncoded: false))
 
         let arguments = try await xcodeProject.loadCompilerArguments(file: filePath, targetIdentifier: request.target)
-        logger.info("Compiler arguments: \(arguments)")
         return TextDocumentSourceKitOptionsResponse(compilerArguments: arguments)
     }
 

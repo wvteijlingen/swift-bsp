@@ -26,7 +26,7 @@ extension BuildTargetIdentifier {
         ]
 
         guard let url = components.url else {
-            throw BuildServerError.cannotCreateBuiltTargetIdentifier(from: configuredTargetIdentifier)
+            throw BuildServerError.cannotCreateBuildTargetIdentifier(from: configuredTargetIdentifier)
         }
 
         self.init(uri: URI(url))

@@ -1,15 +1,17 @@
+import ArgumentParser
 import Foundation
 import ToolsProtocolsSwiftExtensions
 
 extension Logger {
-    enum Level: String, Comparable {
-        case info, warning, error
+    enum Level: String, Comparable, ExpressibleByArgument {
+        case debug, info, warning, error
 
         private var severity: Int {
             switch self {
-            case .info: 0
-            case .warning: 1
-            case .error: 2
+            case .debug: 0
+            case .info: 1
+            case .warning: 2
+            case .error: 3
             }
         }
 
@@ -27,6 +29,10 @@ struct Logger {
     public init(fileURL: URL, minLevel: Level) {
         self.fileURL = fileURL
         self.minLevel = minLevel
+    }
+
+    func debug(_ message: Sendable) {
+        self.log(.debug, message: message)
     }
 
     func info(_ message: Sendable) {
