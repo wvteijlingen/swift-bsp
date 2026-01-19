@@ -37,7 +37,7 @@ struct CLI: AsyncParsableCommand {
         logger.info("---------------------------")
 
         Task {
-            let buildServer = BuildServer(
+            let buildServer = SwiftBSPMessageHandler(
                 projectFilePath: projectFilePath,
                 logger: logger,
                 onExit: { @Sendable code in

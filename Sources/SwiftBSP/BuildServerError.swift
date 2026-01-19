@@ -5,6 +5,7 @@ import SwiftBuild
 enum BuildServerError: Error, LocalizedError {
     case cannotDetermineXcodeProject
     case projectNotInitialized
+    case projectAlreadyInitialized
     case cannotLoadBuildDescriptionID
     case noWorkspaceInfo
     case invalidFileURI(URI)
@@ -27,6 +28,8 @@ enum BuildServerError: Error, LocalizedError {
             "No workspace info available"
         case .projectNotInitialized:
             "Project not initialized"
+        case .projectAlreadyInitialized:
+            "Project already initialized"
         }
     }
 }

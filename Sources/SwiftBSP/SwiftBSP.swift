@@ -5,7 +5,7 @@ import Path
 import SwiftBuild
 import ToolsProtocolsSwiftExtensions
 
-actor XcodeProject {
+actor SwiftBSP {
     private let projectFilePath: AbsolutePath
     private let arena: SWBArenaInfo
     private let buildServiceSession: SWBBuildServiceSession
@@ -460,7 +460,7 @@ actor XcodeProject {
 
 // MARK: - SWBPlanningOperationDelegate, SWBIndexingDelegate
 
-extension XcodeProject: SWBIndexingDelegate {
+extension SwiftBSP: SWBIndexingDelegate {
     func provisioningTaskInputs(
         targetGUID: String,
         provisioningSourceData: SWBProvisioningTaskInputsSourceData

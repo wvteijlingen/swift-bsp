@@ -12,7 +12,7 @@ private enum State {
     case shutdown
 }
 
-final actor BuildServer: QueueBasedMessageHandler {
+final actor SwiftBSPMessageHandler: QueueBasedMessageHandler {
     public let messageHandlingHelper = QueueBasedMessageHandlerHelper(
         signpostLoggingCategory: "BSPMessageHandler",
         createLoggingScope: false
@@ -21,7 +21,7 @@ final actor BuildServer: QueueBasedMessageHandler {
     public let messageHandlingQueue = AsyncQueue<BuildServerMessageDependencyTracker>()
 
     private var state = State.waitingForInitializeRequest
-    private var xcodeProject: XcodeProject?
+    private var bsp: SwiftBSP?
     private let onExit: (_ code: Int32) -> Void
     private let projectFilePath: AbsolutePath
     private let connection: JSONRPCConnection
@@ -33,7 +33,7 @@ final actor BuildServer: QueueBasedMessageHandler {
         self.logger = logger
         self.onExit = onExit
         self.connection = JSONRPCConnection(
-            name: "XcodeBSP",
+            name: "SwiftBSP",
             protocol: .bspProtocol,
             inFD: FileHandle.standardInput,
             outFD: FileHandle.standardOutput,
@@ -69,7 +69,7 @@ final actor BuildServer: QueueBasedMessageHandler {
             // case _ as OnBuildTargetDidChangeNotification:
             //     break
             case let notification as OnWatchedFilesDidChangeNotification:
-                try await handle(notification: notification)
+                try await handleOnWatchedFilesDidChange(notification: notification)
             // case _ as FileOptionsChangedNotification:
             //     break
             // case _ as TaskFinishNotification:
@@ -99,7 +99,7 @@ final actor BuildServer: QueueBasedMessageHandler {
                 let jsonString = String(data: jsonData, encoding: .utf8) ?? "?"
                 self.logger.debug("[Send] \(id) \(messageType)- \(jsonString)")
             case .failure:
-                self.logger.debug("[Send] \(id) - \(response)")
+                self.logger.error("[Send] \(id) - \(response)")
             }
 
             reply(response)
@@ -109,7 +109,7 @@ final actor BuildServer: QueueBasedMessageHandler {
             let state = self.state
             guard state == .running else {
                 await requestAndReply.reply {
-                    throw ResponseError.unknown("Request received while the build server is \(state)")
+                    throw ResponseError.requestFailed("Request '\(String(describing: type(of: requestAndReply.params)))' received while the build server is '\(state)'")
                 }
                 return
             }
@@ -118,17 +118,17 @@ final actor BuildServer: QueueBasedMessageHandler {
         switch requestAndReply {
         case let req as RequestAndReply<BuildShutdownRequest>:
             await req.reply {
-                try await handle(request: req.params)
+                try await handleBuildShutdown(request: req.params)
             }
 
         case let req as RequestAndReply<BuildTargetPrepareRequest>:
             await req.reply {
-                try await handle(request: req.params)
+                try await handleBuildTargetPrepare(request: req.params)
             }
 
         case let req as RequestAndReply<BuildTargetSourcesRequest>:
             await req.reply {
-                try await handle(request: req.params)
+                try await handleBuildTargetSources(request: req.params)
             }
 
         case let req as RequestAndReply<InitializeBuildRequest>:
@@ -138,17 +138,17 @@ final actor BuildServer: QueueBasedMessageHandler {
 
         case let req as RequestAndReply<TextDocumentSourceKitOptionsRequest>:
             await req.reply {
-                try await handle(request: req.params)
+                try await handleTextDocumentSourceKitOptions(request: req.params)
             }
 
         case let req as RequestAndReply<WorkspaceBuildTargetsRequest>:
             await req.reply {
-                try await handle(request: req.params)
+                try await handleWorkspaceBuildTargets(request: req.params)
             }
 
         case let req as RequestAndReply<WorkspaceWaitForBuildSystemUpdatesRequest>:
             await req.reply {
-                try await handle(request: req.params)
+                try await handleWorkspaceWaitForBuildSystemUpdates(request: req.params)
             }
 
         default:
@@ -159,93 +159,72 @@ final actor BuildServer: QueueBasedMessageHandler {
 
 // MARK: - Request Handlers
 
-extension BuildServer {
+extension SwiftBSPMessageHandler {
     private func handle(request: InitializeBuildRequest) async throws -> InitializeBuildResponse {
         guard state == .waitingForInitializeRequest else {
-            throw ResponseError.unknown("InitializeBuildRequest received while the build server is \(state)")
+            throw BuildServerError.projectAlreadyInitialized
         }
 
         guard let fileURL = request.rootUri.fileURL else {
-            throw ResponseError.unknown("InitializeBuildRequest received with invalid rootUri")
+            throw ResponseError.invalidParams("InitializeBuildRequest received with invalid rootUri")
         }
 
         guard fileURL.path(percentEncoded: false) == projectFilePath.parentDirectory.pathString else {
-            throw ResponseError.unknown(
+            throw ResponseError.invalidParams(
                 "Expected rootUri to be '\(projectFilePath.parentDirectory.pathString)', actually is '\(fileURL.path(percentEncoded: false))'"
             )
         }
 
-        let xcodeProject = try await XcodeProject(
+        let bsp = try await SwiftBSP(
             projectFilePath: projectFilePath,
             taskLogger: taskLogger,
             logger: logger
         )
 
-        self.xcodeProject = xcodeProject
+        self.bsp = bsp
         state = .waitingForInitializedNotification
-        return await xcodeProject.initialize()
+        return await bsp.initialize()
     }
 
-    private func handle(request: BuildShutdownRequest) async throws -> VoidResponse {
-        try await xcodeProject?.closeSession()
+    private func handleBuildShutdown(request: BuildShutdownRequest) async throws -> VoidResponse {
+        guard let bsp, state == .running else { throw BuildServerError.projectNotInitialized }
+
+        try await bsp.closeSession()
         state = .shutdown
         return VoidResponse()
     }
 
-    private func handle(request: BuildTargetSourcesRequest) async throws -> BuildTargetSourcesResponse {
-        guard state == .running else {
-            throw ResponseError.unknown(
-                "BuildTargetSourcesRequest received while the build server is \(state)")
-        }
+    private func handleBuildTargetSources(
+        request: BuildTargetSourcesRequest
+    ) async throws -> BuildTargetSourcesResponse {
+        guard let bsp, state == .running else { throw BuildServerError.projectNotInitialized }
 
-        guard let xcodeProject else {
-            throw BuildServerError.projectNotInitialized
-        }
-
-        let sourceItems = try await xcodeProject.loadBuildSources(targetIdentifiers: request.targets)
+        let sourceItems = try await bsp.loadBuildSources(targetIdentifiers: request.targets)
         return BuildTargetSourcesResponse(items: sourceItems)
     }
 
-    private func handle(request: WorkspaceBuildTargetsRequest) async throws -> WorkspaceBuildTargetsResponse {
-        guard state == .running else {
-            throw ResponseError.unknown(
-                "WorkspaceBuildTargetsRequest received while the build server is \(state)")
-        }
+    private func handleWorkspaceBuildTargets(
+        request: WorkspaceBuildTargetsRequest
+    ) async throws -> WorkspaceBuildTargetsResponse {
+        guard let bsp, state == .running else { throw BuildServerError.projectNotInitialized }
 
-        guard let xcodeProject else {
-            throw BuildServerError.projectNotInitialized
-        }
-
-        let buildTargets = try await xcodeProject.loadBuildTargets()
+        let buildTargets = try await bsp.loadBuildTargets()
 
         return WorkspaceBuildTargetsResponse(targets: buildTargets)
     }
 
-    private func handle(request: BuildTargetPrepareRequest) async throws -> VoidResponse {
-        guard state == .running else {
-            throw ResponseError.unknown(
-                "WorkspaceBuildTargetsRequest received while the build server is \(state)")
-        }
+    private func handleBuildTargetPrepare(request: BuildTargetPrepareRequest) async throws -> VoidResponse {
+        guard let bsp, state == .running else { throw BuildServerError.projectNotInitialized }
 
-        guard let xcodeProject else {
-            throw BuildServerError.projectNotInitialized
-        }
-
-        try await xcodeProject.prepareTargets(targets: request.targets)
+        try await bsp.prepareTargets(targets: request.targets)
 
         return VoidResponse()
     }
 
-    private func handle(
+    private func handleTextDocumentSourceKitOptions(
         request: TextDocumentSourceKitOptionsRequest
     ) async throws -> TextDocumentSourceKitOptionsResponse {
-        guard state == .running else {
-            throw ResponseError.unknown("WorkspaceBuildTargetsRequest received while the build server is \(state)")
-        }
-
-        guard let xcodeProject else {
-            throw BuildServerError.projectNotInitialized
-        }
+        guard let bsp, state == .running else { throw BuildServerError.projectNotInitialized }
 
         guard let fileURL = request.textDocument.uri.fileURL else {
             throw BuildServerError.invalidFileURI(request.textDocument.uri)
@@ -253,18 +232,16 @@ extension BuildServer {
 
         let filePath = try AbsolutePath(validating: fileURL.path(percentEncoded: false))
 
-        let arguments = try await xcodeProject.loadCompilerArguments(file: filePath, targetIdentifier: request.target)
+        let arguments = try await bsp.loadCompilerArguments(file: filePath, targetIdentifier: request.target)
         return TextDocumentSourceKitOptionsResponse(compilerArguments: arguments)
     }
 
-    private func handle(
+    private func handleWorkspaceWaitForBuildSystemUpdates(
         request: WorkspaceWaitForBuildSystemUpdatesRequest
     ) async throws -> VoidResponse {
-        guard let xcodeProject else {
-            throw BuildServerError.projectNotInitialized
-        }
+        guard let bsp, state == .running else { throw BuildServerError.projectNotInitialized }
 
-        await xcodeProject.waitForUpdates()
+        await bsp.waitForUpdates()
 
         return VoidResponse()
     }
@@ -272,20 +249,13 @@ extension BuildServer {
 
 // MARK: - Notification Handlers
 
-extension BuildServer {
-    func handle(notification: OnWatchedFilesDidChangeNotification) async throws {
-        guard state == .running else {
-            throw ResponseError.unknown(
-                "OnWatchedFilesDidChangeNotification received while the build server is \(state)")
-        }
-
-        guard let xcodeProject else {
-            throw BuildServerError.projectNotInitialized
-        }
+extension SwiftBSPMessageHandler {
+    func handleOnWatchedFilesDidChange(notification: OnWatchedFilesDidChangeNotification) async throws {
+        guard let bsp, state == .running else { throw BuildServerError.projectNotInitialized }
 
         for change in notification.changes {
             if change.uri.fileURL?.path(percentEncoded: false) == projectFilePath.pathString {
-                try await xcodeProject.loadProject()
+                try await bsp.loadProject()
             }
         }
     }
