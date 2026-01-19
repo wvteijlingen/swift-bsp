@@ -32,6 +32,18 @@ extension BuildTargetIdentifier {
         self.init(uri: URI(url))
     }
 
+    var configuredTargetGUID: String {
+        get throws {
+            try configuredTargetIdentifier.rawGUID
+        }
+    }
+
+    var targetGUID: SWBTargetGUID {
+        get throws {
+            try configuredTargetIdentifier.targetGUID
+        }
+    }
+
     var configuredTargetIdentifier: SWBConfiguredTargetIdentifier {
         get throws {
             guard let components = URLComponents(url: uri.arbitrarySchemeURL, resolvingAgainstBaseURL: false) else {

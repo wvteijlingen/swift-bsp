@@ -5,14 +5,13 @@ import SwiftBuild
 
 @main
 struct CLI: AsyncParsableCommand {
-    @Option var project: String
-    @Flag var persistLog = false
+    @Option var project: String?
     @Option var logLevel: Logger.Level = .warning
+    @Flag var persistLog = false
 
     @MainActor
     func run() async throws {
         let pwd = FileManager.default.currentDirectoryPath
-        let projectFilePath = try AbsolutePath(validating: pwd).appending(component: project)
         let logFileURL = URL(filePath: "\(pwd)/.xcode-bsp/xcode-bsp.log")
 
         if !persistLog {
@@ -21,10 +20,20 @@ struct CLI: AsyncParsableCommand {
 
         let logger = Logger(fileURL: logFileURL, minLevel: logLevel)
 
+        let projectFilePath = if let project {
+            try AbsolutePath(validating: pwd).appending(component: project)
+        } else {
+            findXcodeProjectOrWorkspace(in: pwd)
+        }
+
+        guard let projectFilePath else {
+            throw BuildServerError.cannotDetermineXcodeProject
+        }
+
         logger.info("---------------------------")
         logger.info("Starting Xcode Build Server")
         logger.info("directory: \(pwd)")
-        logger.info("project:   \(project)")
+        logger.info("project:   \(projectFilePath)")
         logger.info("---------------------------")
 
         Task {
@@ -47,4 +56,23 @@ struct CLI: AsyncParsableCommand {
 
         logger.info("Exiting!")
     }
+}
+
+private func findXcodeProjectOrWorkspace(in directory: String) -> AbsolutePath? {
+    let fileManager = FileManager.default
+
+    guard let contents = try? fileManager.contentsOfDirectory(
+        at: URL(filePath: directory),
+        includingPropertiesForKeys: nil,
+        options: [.skipsHiddenFiles]
+    ) else {
+        return nil
+    }
+
+    let pathString = contents.first { url in
+        let ext = url.pathExtension.lowercased()
+        return ext == "xcworkspace" || ext == "xcodeproj"
+    }?.path(percentEncoded: false)
+
+    return pathString.flatMap { try? AbsolutePath(validating: $0) }
 }

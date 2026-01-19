@@ -3,6 +3,7 @@ import Foundation
 import SwiftBuild
 
 enum BuildServerError: Error, LocalizedError {
+    case cannotDetermineXcodeProject
     case projectNotInitialized
     case cannotLoadBuildDescriptionID
     case noWorkspaceInfo
@@ -12,6 +13,8 @@ enum BuildServerError: Error, LocalizedError {
 
     var errorDescription: String? {
         switch self {
+        case .cannotDetermineXcodeProject:
+            "Cannot determine Xcode project or workspace. Provide the filename as an argument using '--project'"
         case .cannotCreateBuildTargetIdentifier(let from):
             "Cannot create build target identifier from '\(from)'"
         case .cannotLoadBuildDescriptionID:

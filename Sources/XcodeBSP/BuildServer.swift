@@ -54,7 +54,7 @@ final actor BuildServer: QueueBasedMessageHandler {
     }
 
     func handle(notification: some NotificationType) {
-        logger.info("[Receive] Notification - \(notification)")
+        logger.debug("[Receive] Notification - \(notification)")
 
         Task {
             switch notification {
@@ -89,10 +89,19 @@ final actor BuildServer: QueueBasedMessageHandler {
         id: RequestID,
         reply: @escaping @Sendable (LSPResult<Request.Response>) -> Void
     ) async where Request: RequestType {
-        logger.info("[Receive] Request \(id) - \(request)")
+        logger.debug("[Receive] Request \(id) - \(request)")
 
         let requestAndReply = RequestAndReply(request) { response in
-            self.logger.info("[Send] \(id) - \(response)")
+            switch response {
+            case .success(let message):
+                let messageType = String(describing: type(of: message))
+                let jsonData = try! JSONEncoder(outputFormatting: [.prettyPrinted, .sortedKeys]).encode(message)
+                let jsonString = String(data: jsonData, encoding: .utf8) ?? "?"
+                self.logger.debug("[Send] \(id) \(messageType)- \(jsonString)")
+            case .failure:
+                self.logger.debug("[Send] \(id) - \(response)")
+            }
+
             reply(response)
         }
 
@@ -178,6 +187,7 @@ extension BuildServer {
     }
 
     private func handle(request: BuildShutdownRequest) async throws -> VoidResponse {
+        try await xcodeProject?.closeSession()
         state = .shutdown
         return VoidResponse()
     }

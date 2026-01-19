@@ -29,7 +29,7 @@ struct TaskLogger: Sendable {
 
         connection.send(notification)
 
-        let logLevel = status == .ok ? Logger.Level.debug : Logger.Level.error
+        let logLevel = status == .ok ? Logger.Level.info : Logger.Level.error
         let logMessage = ["\(status)", errorMessage].compactMap { $0 }.joined(separator: ", ")
         logger.log(logLevel, message: "Finish task \(id.id): \(logMessage)")
     }
