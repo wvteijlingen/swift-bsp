@@ -14,7 +14,7 @@ let package = Package(
         .package(url: "https://github.com/swiftlang/swift-tools-protocols.git", from: "0.0.9"),
         .package(
             url: "https://github.com/swiftlang/swift-build.git",
-            revision: "7737a7666ca94d191f33ce3d029f38d97196b50b"
+            revision: "d3acea2a54048e173bc42148c587e81f73c3ab78"
         )
     ],
     targets: [

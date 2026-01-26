@@ -1,5 +1,5 @@
 {
-  "originHash" : "25fcbafa9635c8e376aeaaec803fc6d2b7da393dc6468f9451aab21790b7679f",
+  "originHash" : "6d12a5c8049d6a402f11ee30ce004e69e2559636911ac3b9ea0e87ffba2cd084",
   "pins" : [
     {
       "identity" : "swift-argument-parser",
@@ -15,7 +15,7 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/swiftlang/swift-build.git",
       "state" : {
-        "revision" : "7737a7666ca94d191f33ce3d029f38d97196b50b"
+        "revision" : "d3acea2a54048e173bc42148c587e81f73c3ab78"
       }
     },
     {
@@ -59,8 +59,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/swiftlang/swift-tools-protocols",
       "state" : {
-        "revision" : "f86b413a803761408e5e718912c46d75a340801b",
-        "version" : "0.0.9"
+        "revision" : "d81024558da3bcd53748c4cfdaba10a49242442e",
+        "version" : "0.0.10"
       }
     },
     {
