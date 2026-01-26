@@ -118,15 +118,6 @@ actor SwiftBSP {
                 disableOnlyActiveArch: false
             )
         }
-//        SWBRunDestinationInfo(
-//            platform: "iphoneos",
-//            sdk: "iphoneos26.2",
-//            sdkVariant: nil, //"iphoneos",
-//            targetArchitecture: "undefined_arch",
-//            supportedArchitectures: [], //["armv4t", "armv5", "armv6", "armv7", "armv7f", "armv7s", "armv7k", "arm64", "arm64e"],
-//            disableOnlyActiveArch: false // true,
-////            hostTargetedPlatform: nil
-//        )
 
         var synthesized = buildRequest.parameters.overrides.synthesized ?? SWBSettingsTable()
         synthesized.set(value: "NO", for: "ENABLE_XOJIT_PREVIEWS")
@@ -179,60 +170,11 @@ actor SwiftBSP {
         let workspaceInfo = try await buildServiceSession.workspaceInfo()
 
         for target in workspaceInfo.targetInfos {
-            // if let only {
-            //     let containedInOnly = only.contains { $0.rawValue == target.guid }
-            //     if !containedInOnly { continue }
-            // }
-
-            // let isExternalTarget =
-            //     target.guid.starts(with: "PACKAGE-TARGET") || target.guid.starts(with: "PACKAGE-PRODUCT")
-
-            // if onlyMain && isExternalTarget { continue }
-
             buildRequest.add(target: SWBConfiguredTarget(guid: target.guid))
         }
 
         return buildRequest
     }
-
-//    private func computeDependencyGraph(targetGUIDs: [SWBTargetGUID]) async throws -> [SWBTargetGUID: [SWBTargetGUID]] {
-//        try await taskLogger.log(title: "Computing dependency graph for \(targetGUIDs)") {
-//            var buildParameters = SWBBuildParameters()
-//            buildParameters.action = "indexbuild"
-//            buildParameters.configurationName = "Debug"
-//
-//            let result = try await buildServiceSession.computeDependencyGraph(
-//                targetGUIDs: targetGUIDs,
-//                buildParameters: buildParameters,
-//                includeImplicitDependencies: true
-//            )
-//
-//            // logger.debug("Dependency graph: \(result)")
-//
-//            return result
-//        }
-//    }
-
-//    private func allDependencies(
-//        ofTargetGUID: SWBTargetGUID,
-//        inGraph graph: [SWBTargetGUID: [SWBTargetGUID]]
-//    ) -> [SWBTargetGUID] {
-//        var resolvedDependencies: [SWBTargetGUID] = []
-//
-//        let dependencies = graph[ofTargetGUID] ?? []
-//
-//        for dependency in dependencies {
-//            let subdependencies = allDependencies(ofTargetGUID: dependency, inGraph: graph)
-//
-//            if subdependencies.isEmpty {
-//                resolvedDependencies.append(dependency)
-//            } else {
-//                resolvedDependencies = resolvedDependencies.appending(contentsOf: subdependencies)
-//            }
-//        }
-//
-//        return resolvedDependencies.removingDuplicates()
-//    }
 
     // MARK: - Loaders
 
@@ -319,26 +261,6 @@ actor SwiftBSP {
                     let toolchain = targetInfo.toolchain.map { toolchain in
                         DocumentURI(filePath: toolchain.pathString, isDirectory: true)
                     }
-
-//                    let dependencyGraph: [SWBTargetGUID: [SWBTargetGUID]] = try await computeDependencyGraph(
-//                        targetGUIDs: [targetInfo.identifier.targetGUID]
-//                    )
-//
-//                    let projectDependencies = try targetInfo.dependencies.map { dependency in
-//                        try BuildTargetIdentifier(configuredTargetIdentifier: dependency)
-//                    }
-//
-//                    let discoveredDependencies = try await allDependencies(
-//                        ofTargetGUID: targetInfo.identifier.targetGUID,
-//                        inGraph: dependencyGraph
-//                    ).compactMap { (dependencyGUID: SWBTargetGUID) -> BuildTargetIdentifier? in
-//                        guard let target = targets.first(where: { $0.identifier.targetGUID == dependencyGUID }) else {
-//                            return nil
-//                        }
-//                        return try BuildTargetIdentifier(configuredTargetIdentifier: target.identifier)
-//                    }
-
-//                    let allDependencies = (projectDependencies + discoveredDependencies).removingDuplicates()
 
                     let target = BuildTarget(
                         id: try BuildTargetIdentifier(configuredTargetIdentifier: targetInfo.identifier),
@@ -455,31 +377,6 @@ actor SwiftBSP {
             }.valuePropagatingCancellation
         }
     }
-
-    // func build() async throws {
-    //     try await taskLogger.log(title: "Building your anus") {
-    //         guard let buildRequest = self.workspaceInfo?.0 else {
-    //             throw BuildServerError.noWorkspaceInfo
-    //         }
-
-    //         var configuredRequest = try await self.configureTargets(in: buildRequest, onlyMain: true)
-
-    //         configuredRequest.buildCommand = .build(style: .buildOnly, skipDependencies: false)
-    //         configuredRequest.parameters.action = "build"
-    //         configuredRequest.parameters.configurationName = "Debug"
-
-    //         let buildOperation = try await buildServiceSession.createBuildOperation(
-    //             request: configuredRequest,
-    //             delegate: self
-    //         )
-
-    //         let events = try await buildOperation.start()
-
-    //         logEvents(events)
-
-    //         await buildOperation.waitForCompletion()
-    //     }
-    // }
 }
 
 // MARK: - SWBPlanningOperationDelegate, SWBIndexingDelegate

@@ -275,19 +275,5 @@ extension SwiftBSPMessageHandler {
             try await bsp.loadProject()
             connection.send(OnBuildTargetDidChangeNotification(changes: nil))
         }
-
-//        for change in notification.changes {
-//            if filePath == projectFilePath.pathString {
-//                try await bsp.loadProject()
-//                connection.send(OnBuildTargetDidChangeNotification(changes: nil))
-//                return
-//            } else if filePath?.contains("buildServer.json") == true { // TODO: Check full path
-//                try await bsp.loadProject()
-//                connection.send(OnBuildTargetDidChangeNotification(changes: nil))
-//            } else if change.type == .created || change.type == .deleted {
-//                try await bsp.loadProject() // FIXME: Don't reload the whole project?
-//                connection.send(OnBuildTargetDidChangeNotification(changes: nil))
-//            }
-//        }
     }
 }
