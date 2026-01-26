@@ -2,7 +2,7 @@ import BuildServerProtocol
 import SwiftBuild
 
 struct EventLogger {
-    let logger: Logger
+    let logger: FileLogger
     let taskLogger: TaskLogger
 
     func log(events: AsyncStream<SwiftBuildMessage>) {

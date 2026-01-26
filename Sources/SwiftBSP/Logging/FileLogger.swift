@@ -2,8 +2,8 @@ import ArgumentParser
 import Foundation
 import ToolsProtocolsSwiftExtensions
 
-extension Logger {
-    enum Level: String, Comparable, ExpressibleByArgument {
+extension FileLogger {
+    enum Level: String, Comparable, Decodable {
         case debug, info, warning, error
 
         private var severity: Int {
@@ -21,14 +21,16 @@ extension Logger {
     }
 }
 
-struct Logger {
+struct FileLogger {
     private let queque = AsyncQueue<Serial>()
     private let fileURL: URL
     private let minLevel: Level
+    private let enabled: Bool
 
-    public init(fileURL: URL, minLevel: Level) {
+    public init(fileURL: URL, minLevel: Level, enabled: Bool) {
         self.fileURL = fileURL
         self.minLevel = minLevel
+        self.enabled = enabled
     }
 
     func debug(_ message: Sendable) {
@@ -48,6 +50,7 @@ struct Logger {
     }
 
     func log(_ level: Level, message: Sendable) {
+        guard enabled else { return }
         guard level >= minLevel else { return }
 
         queque.async {

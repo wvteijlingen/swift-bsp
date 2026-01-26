@@ -11,6 +11,7 @@ enum BuildServerError: Error, LocalizedError {
     case invalidFileURI(URI)
     case cannotCreateBuildTargetIdentifier(from: SWBConfiguredTargetIdentifier)
     case invalidTargetIdentifier(URL)
+    case invalidConfig(Error)
 
     var errorDescription: String? {
         switch self {
@@ -30,6 +31,8 @@ enum BuildServerError: Error, LocalizedError {
             "Project not initialized"
         case .projectAlreadyInitialized:
             "Project already initialized"
+        case .invalidConfig(let error):
+            "Could not read configuration: \(error.localizedDescription)"
         }
     }
 }

@@ -1,10 +1,3 @@
-//
-//  dawda.swift
-//  xcode-bsp
-//
-//  Created by Ward van Teijlingen on 19/01/2026.
-//
-
 import Foundation
 import SwiftBuild
 import RegexBuilder

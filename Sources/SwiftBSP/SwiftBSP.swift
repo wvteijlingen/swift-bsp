@@ -6,28 +6,39 @@ import SwiftBuild
 import ToolsProtocolsSwiftExtensions
 
 actor SwiftBSP {
+    private let swiftBSPFolder: AbsolutePath
     private let projectFilePath: AbsolutePath
     private let arena: SWBArenaInfo
     private let buildServiceSession: SWBBuildServiceSession
 
     private let taskLogger: TaskLogger
-    private let logger: Logger
+    private let logger: FileLogger
     private let eventLogger: EventLogger
 
     private let workspaceLoadingQueue = AsyncQueue<Serial>()
     private let preparationQueue = AsyncQueue<Serial>()
 
+    private var config: BuildServerConfig?
     private var buildDescriptionID: SWBBuildDescriptionID?
 
-    init(projectFilePath: AbsolutePath, taskLogger: TaskLogger, logger: Logger) async throws {
-        let xcodeBspFolder = projectFilePath.parentDirectory.appending(components: ".xcode-bsp")
-
+    init(
+        projectFilePath: AbsolutePath,
+        config: BuildServerConfig,
+        taskLogger: TaskLogger,
+        logger: FileLogger
+    ) async throws {
+        self.swiftBSPFolder = projectFilePath.parentDirectory.appending(components: "build")
+        self.config = config
         self.taskLogger = taskLogger
         self.logger = logger
         self.eventLogger = EventLogger(logger: logger, taskLogger: taskLogger)
 
         self.projectFilePath = projectFilePath
-        self.arena = SWBArenaInfo(root: xcodeBspFolder.appending(component: "arena"), indexEnableDataStore: true)
+        self.arena = SWBArenaInfo(root: swiftBSPFolder, indexEnableDataStore: true)
+//        self.arena = try config.swiftBSP?.scratchPad.map { scratchPad in
+//            let root = try AbsolutePath(validating: scratchPad)
+//            return SWBArenaInfo(root: root, indexEnableDataStore: true)
+//        }
 
         let task = taskLogger.start(title: "Initializing build server")
 
@@ -36,7 +47,7 @@ actor SwiftBSP {
         let (session, diagnosticInfo) = await service.createSession(
             name: projectFilePath.pathString,
             developerPath: "/Applications/Xcode.app/Contents/Developer",
-            cachePath: xcodeBspFolder.appending(component: "cache").pathString,
+            cachePath: nil, //swiftBSPFolder.appending(component: "cache").pathString,
             inferiorProductsPath: nil,  //xcodeBspFolder.appending(component: "inferiorProducts").pathString,
             environment: [:]
         )
@@ -68,11 +79,7 @@ actor SwiftBSP {
         try await workspaceLoadingQueue.asyncThrowing {
             try await self.loadWorkspace()
             let buildRequest = self.createBuildRequest()
-            let buildDescriptionID = try await self.loadBuildDescriptionID(buildRequest: buildRequest)
-
-            self.buildDescriptionID = (buildDescriptionID)
-
-            // try await self.build()
+            self.buildDescriptionID = try await self.loadBuildDescriptionID(buildRequest: buildRequest)
         }.valuePropagatingCancellation
     }
 
@@ -100,18 +107,26 @@ actor SwiftBSP {
 
         buildRequest.parameters.arenaInfo = arena
         buildRequest.parameters.action = "indexbuild"
-        buildRequest.parameters.configurationName = "Debug"
-        buildRequest.parameters.activeRunDestination = nil
-        buildRequest.parameters.activeArchitecture = "arm64"
-        buildRequest.parameters.activeRunDestination = SWBRunDestinationInfo(
-            platform: "iphoneos",
-            sdk: "iphoneos26.2",
-            sdkVariant: "iphoneos",
-            targetArchitecture: "undefined_arch",
-            supportedArchitectures: ["armv4t", "armv5", "armv6", "armv7", "armv7f", "armv7s", "armv7k", "arm64", "arm64e"],
-            disableOnlyActiveArch: true,
-            hostTargetedPlatform: nil
-        )
+        buildRequest.parameters.configurationName = config?.swiftBSP?.configuration ?? "Debug"
+        buildRequest.parameters.activeRunDestination = config?.swiftBSP?.runDestination.map { config in
+            SWBRunDestinationInfo(
+                platform: config.platform ?? config.sdk,
+                sdk: config.sdk,
+                sdkVariant: nil,
+                targetArchitecture: "undefined_arch",
+                supportedArchitectures: [],
+                disableOnlyActiveArch: false
+            )
+        }
+//        SWBRunDestinationInfo(
+//            platform: "iphoneos",
+//            sdk: "iphoneos26.2",
+//            sdkVariant: nil, //"iphoneos",
+//            targetArchitecture: "undefined_arch",
+//            supportedArchitectures: [], //["armv4t", "armv5", "armv6", "armv7", "armv7f", "armv7s", "armv7k", "arm64", "arm64e"],
+//            disableOnlyActiveArch: false // true,
+////            hostTargetedPlatform: nil
+//        )
 
         var synthesized = buildRequest.parameters.overrides.synthesized ?? SWBSettingsTable()
         synthesized.set(value: "NO", for: "ENABLE_XOJIT_PREVIEWS")
@@ -232,7 +247,7 @@ actor SwiftBSP {
         let languageIds = [Language.swift, .c, .cpp, .objective_c, .objective_cpp]
 
         return InitializeBuildResponse(
-            displayName: "xcode-bsp \(buildServiceSession.uid)",
+            displayName: "swift-bsp \(buildServiceSession.uid)",
             version: "0.0.1",
             bspVersion: "2.2.0",
             capabilities:
@@ -259,7 +274,16 @@ actor SwiftBSP {
                 outputPathsProvider: true,
                 prepareProvider: true,
                 sourceKitOptionsProvider: true,
-                watchers: nil
+                watchers: [
+                    FileSystemWatcher(globPattern: projectFilePath.pathString, kind: .change),
+                    FileSystemWatcher(
+                        globPattern: projectFilePath.parentDirectory.appending(
+                            component: "buildServer.json"
+                        ).pathString,
+                        kind: .change
+                    ),
+                    FileSystemWatcher(globPattern: "**/*.swift", kind: [.create, .delete])
+                ]
             ).encodeToLSPAny()
         )
     }

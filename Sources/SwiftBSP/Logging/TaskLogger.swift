@@ -5,16 +5,16 @@ import LanguageServerProtocolTransport
 
 struct TaskLogger: Sendable {
     private let connection: any Connection
-    private let logger: Logger
+    private let logger: FileLogger
 
-    init(connection: any Connection, logger: Logger) {
+    init(connection: any Connection, logger: FileLogger) {
         self.connection = connection
         self.logger = logger
     }
 
     func start(id: String? = nil, title: String) -> TaskId {
         let id = id.map { TaskId(id: String($0)) } ?? TaskId(id: UUID().uuidString)
-        let title = "[xcode-bsp] \(title)"
+        let title = "[swift-bsp] \(title)"
         let notification = TaskStartNotification(taskId: id, data: WorkDoneProgressTask(title: title).encodeToLSPAny())
 
         connection.send(notification)
@@ -29,7 +29,7 @@ struct TaskLogger: Sendable {
 
         connection.send(notification)
 
-        let logLevel = status == .ok ? Logger.Level.info : Logger.Level.error
+        let logLevel = status == .ok ? FileLogger.Level.info : FileLogger.Level.error
         let logMessage = ["\(status)", errorMessage].compactMap { $0 }.joined(separator: ", ")
         logger.log(logLevel, message: "Finish task \(id.id): \(logMessage)")
     }

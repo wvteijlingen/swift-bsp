@@ -4,7 +4,7 @@ import SWBProtocol
 import SwiftBuild
 
 extension BuildTargetIdentifier {
-    private static let scheme = "xcode-bsp"
+    private static let scheme = "swift-bsp"
 
     init(configuredTargetIdentifier: SWBConfiguredTargetIdentifier) throws {
         var components = URLComponents()

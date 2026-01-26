@@ -24,12 +24,19 @@ final actor SwiftBSPMessageHandler: QueueBasedMessageHandler {
     private var bsp: SwiftBSP?
     private let onExit: (_ code: Int32) -> Void
     private let projectFilePath: AbsolutePath
+    private let config: BuildServerConfig
     private let connection: JSONRPCConnection
-    private let logger: Logger
+    private let logger: FileLogger
     private let taskLogger: TaskLogger
 
-    init(projectFilePath: AbsolutePath, logger: Logger, onExit: @escaping (_ code: Int32) -> Void) {
+    init(
+        projectFilePath: AbsolutePath,
+        config: BuildServerConfig,
+        logger: FileLogger,
+        onExit: @escaping (_ code: Int32) -> Void
+    ) {
         self.projectFilePath = projectFilePath
+        self.config = config
         self.logger = logger
         self.onExit = onExit
         self.connection = JSONRPCConnection(
@@ -177,6 +184,7 @@ extension SwiftBSPMessageHandler {
 
         let bsp = try await SwiftBSP(
             projectFilePath: projectFilePath,
+            config: config,
             taskLogger: taskLogger,
             logger: logger
         )
@@ -252,11 +260,34 @@ extension SwiftBSPMessageHandler {
 extension SwiftBSPMessageHandler {
     func handleOnWatchedFilesDidChange(notification: OnWatchedFilesDidChangeNotification) async throws {
         guard let bsp, state == .running else { throw BuildServerError.projectNotInitialized }
+        logger.debug("Files changed \(notification.changes.count): \(notification.changes, default: "nil")")
 
-        for change in notification.changes {
-            if change.uri.fileURL?.path(percentEncoded: false) == projectFilePath.pathString {
-                try await bsp.loadProject()
-            }
+        let needsReload = notification.changes.contains { change in
+            guard let filePath = change.uri.fileURL?.path(percentEncoded: false) else { return false }
+
+            return change.type == .created ||
+                change.type == .deleted ||
+                filePath == projectFilePath.pathString ||
+                filePath == projectFilePath.parentDirectory.appending(component: "buildServer.json").pathString
         }
+
+        if needsReload {
+            try await bsp.loadProject()
+            connection.send(OnBuildTargetDidChangeNotification(changes: nil))
+        }
+
+//        for change in notification.changes {
+//            if filePath == projectFilePath.pathString {
+//                try await bsp.loadProject()
+//                connection.send(OnBuildTargetDidChangeNotification(changes: nil))
+//                return
+//            } else if filePath?.contains("buildServer.json") == true { // TODO: Check full path
+//                try await bsp.loadProject()
+//                connection.send(OnBuildTargetDidChangeNotification(changes: nil))
+//            } else if change.type == .created || change.type == .deleted {
+//                try await bsp.loadProject() // FIXME: Don't reload the whole project?
+//                connection.send(OnBuildTargetDidChangeNotification(changes: nil))
+//            }
+//        }
     }
 }
