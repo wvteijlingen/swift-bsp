@@ -1,15 +1,6 @@
 {
-  "originHash" : "e568836c8da400b920ab59046e26b1a7ce1b6cc8d6c1f4e2d554490c7ec74c85",
+  "originHash" : "25fcbafa9635c8e376aeaaec803fc6d2b7da393dc6468f9451aab21790b7679f",
   "pins" : [
-    {
-      "identity" : "path",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/tuist/Path",
-      "state" : {
-        "revision" : "7c74ac435e03a927c3a73134c48b61e60221abcb",
-        "version" : "0.3.8"
-      }
-    },
     {
       "identity" : "swift-argument-parser",
       "kind" : "remoteSourceControl",

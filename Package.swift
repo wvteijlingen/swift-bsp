@@ -15,8 +15,7 @@ let package = Package(
         .package(
             url: "https://github.com/swiftlang/swift-build.git",
             revision: "7737a7666ca94d191f33ce3d029f38d97196b50b"
-        ),
-        .package(url: "https://github.com/tuist/Path", from: "0.3.8"),
+        )
     ],
     targets: [
         .executableTarget(
@@ -26,7 +25,6 @@ let package = Package(
                 .product(name: "BuildServerProtocol", package: "swift-tools-protocols"),
                 .product(name: "LanguageServerProtocolTransport", package: "swift-tools-protocols"),
                 .product(name: "SwiftBuild", package: "swift-build"),
-                .product(name: "Path", package: "path"),
                 .product(name: "SWBBuildServiceBundle", package: "swift-build"),
             ]
         ),

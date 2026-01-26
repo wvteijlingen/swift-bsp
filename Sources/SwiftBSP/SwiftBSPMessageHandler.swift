@@ -2,7 +2,7 @@ import BuildServerProtocol
 import Foundation
 import LanguageServerProtocol
 import LanguageServerProtocolTransport
-import Path
+import System
 import ToolsProtocolsSwiftExtensions
 
 private enum State {
@@ -23,19 +23,21 @@ final actor SwiftBSPMessageHandler: QueueBasedMessageHandler {
     private var state = State.waitingForInitializeRequest
     private var bsp: SwiftBSP?
     private let onExit: (_ code: Int32) -> Void
-    private let projectFilePath: AbsolutePath
+    private let projectFilePath: FilePath
+    private let projectDirectoryPath: FilePath
     private let config: BuildServerConfig
     private let connection: JSONRPCConnection
     private let logger: FileLogger
     private let taskLogger: TaskLogger
 
     init(
-        projectFilePath: AbsolutePath,
+        projectFilePath: FilePath,
         config: BuildServerConfig,
         logger: FileLogger,
         onExit: @escaping (_ code: Int32) -> Void
     ) {
         self.projectFilePath = projectFilePath
+        self.projectDirectoryPath = projectFilePath.removingLastComponent()
         self.config = config
         self.logger = logger
         self.onExit = onExit
@@ -176,9 +178,9 @@ extension SwiftBSPMessageHandler {
             throw ResponseError.invalidParams("InitializeBuildRequest received with invalid rootUri")
         }
 
-        guard fileURL.path(percentEncoded: false) == projectFilePath.parentDirectory.pathString else {
+        guard fileURL.path(percentEncoded: false) == projectDirectoryPath.string else {
             throw ResponseError.invalidParams(
-                "Expected rootUri to be '\(projectFilePath.parentDirectory.pathString)', actually is '\(fileURL.path(percentEncoded: false))'"
+                "Expected rootUri to be '\(projectDirectoryPath)', actually is '\(fileURL.path(percentEncoded: false))'"
             )
         }
 
@@ -238,7 +240,7 @@ extension SwiftBSPMessageHandler {
             throw BuildServerError.invalidFileURI(request.textDocument.uri)
         }
 
-        let filePath = try AbsolutePath(validating: fileURL.path(percentEncoded: false))
+        let filePath = FilePath(fileURL.path(percentEncoded: false))
 
         let arguments = try await bsp.loadCompilerArguments(file: filePath, targetIdentifier: request.target)
         return TextDocumentSourceKitOptionsResponse(compilerArguments: arguments)
@@ -267,8 +269,8 @@ extension SwiftBSPMessageHandler {
 
             return change.type == .created ||
                 change.type == .deleted ||
-                filePath == projectFilePath.pathString ||
-                filePath == projectFilePath.parentDirectory.appending(component: "buildServer.json").pathString
+                filePath == projectFilePath.string ||
+                filePath == projectDirectoryPath.appending("buildServer.json").string
         }
 
         if needsReload {

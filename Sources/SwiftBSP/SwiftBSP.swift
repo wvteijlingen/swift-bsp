@@ -1,13 +1,13 @@
 import BuildServerProtocol
 import Foundation
 import LanguageServerProtocol
-import Path
+import System
 import SwiftBuild
 import ToolsProtocolsSwiftExtensions
 
 actor SwiftBSP {
-    private let swiftBSPFolder: AbsolutePath
-    private let projectFilePath: AbsolutePath
+    private let swiftBSPFolder: FilePath
+    private let projectFilePath: FilePath
     private let arena: SWBArenaInfo
     private let buildServiceSession: SWBBuildServiceSession
 
@@ -22,12 +22,12 @@ actor SwiftBSP {
     private var buildDescriptionID: SWBBuildDescriptionID?
 
     init(
-        projectFilePath: AbsolutePath,
+        projectFilePath: FilePath,
         config: BuildServerConfig,
         taskLogger: TaskLogger,
         logger: FileLogger
     ) async throws {
-        self.swiftBSPFolder = projectFilePath.parentDirectory.appending(components: "build")
+        self.swiftBSPFolder = projectFilePath.removingLastComponent().appending("build")
         self.config = config
         self.taskLogger = taskLogger
         self.logger = logger
@@ -45,7 +45,7 @@ actor SwiftBSP {
         let service = try await SWBBuildService(connectionMode: .default, variant: .default)
 
         let (session, diagnosticInfo) = await service.createSession(
-            name: projectFilePath.pathString,
+            name: projectFilePath.string,
             developerPath: "/Applications/Xcode.app/Contents/Developer",
             cachePath: nil, //swiftBSPFolder.appending(component: "cache").pathString,
             inferiorProductsPath: nil,  //xcodeBspFolder.appending(component: "inferiorProducts").pathString,
@@ -85,7 +85,7 @@ actor SwiftBSP {
 
     private func loadWorkspace() async throws {
         try await taskLogger.log(title: "Loading workspace") {
-            try await buildServiceSession.loadWorkspace(containerPath: projectFilePath.pathString)
+            try await buildServiceSession.loadWorkspace(containerPath: projectFilePath.string)
             try await buildServiceSession.setSystemInfo(.default())
             try await buildServiceSession.setUserInfo(.default)
         }
@@ -217,11 +217,9 @@ actor SwiftBSP {
                 prepareProvider: true,
                 sourceKitOptionsProvider: true,
                 watchers: [
-                    FileSystemWatcher(globPattern: projectFilePath.pathString, kind: .change),
+                    FileSystemWatcher(globPattern: projectFilePath.string, kind: .change),
                     FileSystemWatcher(
-                        globPattern: projectFilePath.parentDirectory.appending(
-                            component: "buildServer.json"
-                        ).pathString,
+                        globPattern: projectFilePath.removingLastComponent().appending("buildServer.json").string,
                         kind: .change
                     ),
                     FileSystemWatcher(globPattern: "**/*.swift", kind: [.create, .delete])
@@ -324,8 +322,8 @@ actor SwiftBSP {
     }
 
     // TextDocumentSourceKitOptionsRequest
-    func loadCompilerArguments(file: AbsolutePath, targetIdentifier: BuildTargetIdentifier) async throws -> [String] {
-        try await taskLogger.log(title: "Loading compiler arguments for target \(targetIdentifier): \(file.pathString)")
+    func loadCompilerArguments(file: FilePath, targetIdentifier: BuildTargetIdentifier) async throws -> [String] {
+        try await taskLogger.log(title: "Loading compiler arguments for target \(targetIdentifier): \(file.string)")
         {
             guard let buildDescriptionID = buildDescriptionID else {
                 throw BuildServerError.noWorkspaceInfo
@@ -335,7 +333,7 @@ actor SwiftBSP {
             let configuredRequest = try await configureTargets(in: buildRequest) //, only: [targetIdentifier.targetGUID])
 
             return try await buildServiceSession.indexCompilerArguments(
-                of: SwiftBuild.AbsolutePath(validating: file.pathString),
+                of: SwiftBuild.AbsolutePath(validating: file.string),
                 in: targetIdentifier.configuredTargetIdentifier,
                 buildDescription: buildDescriptionID,
                 buildRequest: configuredRequest

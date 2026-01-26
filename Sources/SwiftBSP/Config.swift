@@ -6,14 +6,15 @@
 //
 
 import Foundation
+import System
 
 struct BuildServerConfig: Decodable {
     let swiftBSP: SwiftBSP?
 
-    init(jsonFilePath: AbsolutePath) throws {
+    init(jsonFilePath: FilePath) throws {
         do {
             logger.info("Reading configuration from \(jsonFilePath, privacy: .public)")
-            let data = try Data(contentsOf: URL(filePath: jsonFilePath.pathString))
+            let data = try Data(contentsOf: URL(filePath: jsonFilePath.string))
             self = try JSONDecoder().decode(BuildServerConfig.self, from: data)
         } catch {
             throw BuildServerError.invalidConfig(error)

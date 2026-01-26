@@ -1,4 +1,5 @@
 import ArgumentParser
+import System
 import Foundation
 import LanguageServerProtocolTransport
 import SwiftBuild
@@ -18,8 +19,8 @@ struct CLI: AsyncParsableCommand {
     }
 
     func runThrowing() async throws {
-        let workingDirectory = try AbsolutePath(validating: FileManager.default.currentDirectoryPath)
-        let config = try BuildServerConfig(jsonFilePath: workingDirectory.appending(component: "buildServer.json"))
+        let workingDirectory = FilePath(FileManager.default.currentDirectoryPath)
+        let config = try BuildServerConfig(jsonFilePath: workingDirectory.appending("buildServer.json"))
         let logFileURL = URL(filePath: "\(workingDirectory)/build/swift-bsp.log")
 
         try? FileManager.default.removeItem(at: logFileURL)
@@ -31,7 +32,7 @@ struct CLI: AsyncParsableCommand {
         )
 
         let projectFilePath = if let project = config.swiftBSP?.project {
-            workingDirectory.appending(component: project)
+            workingDirectory.appending(project)
         } else {
             findXcodeWorkspaceOrProject(in: workingDirectory)
         }
@@ -70,11 +71,11 @@ struct CLI: AsyncParsableCommand {
     }
 }
 
-private func findXcodeWorkspaceOrProject(in directory: AbsolutePath) -> AbsolutePath? {
+private func findXcodeWorkspaceOrProject(in directory: FilePath) -> FilePath? {
     let fileManager = FileManager.default
 
     guard let contents = try? fileManager.contentsOfDirectory(
-        at: URL(filePath: directory.pathString),
+        at: URL(filePath: directory.string),
         includingPropertiesForKeys: nil,
         options: [.skipsHiddenFiles]
     ) else {
@@ -89,5 +90,5 @@ private func findXcodeWorkspaceOrProject(in directory: AbsolutePath) -> Absolute
         url.pathExtension.lowercased() == "xcodeproj"
     }?.path(percentEncoded: false)
 
-    return (xcworkspace ?? xcodeproj).flatMap { try? AbsolutePath(validating: $0) }
+    return (xcworkspace ?? xcodeproj).flatMap { FilePath($0) }
 }
