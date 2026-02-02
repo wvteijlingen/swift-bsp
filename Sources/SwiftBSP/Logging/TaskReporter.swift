@@ -2,14 +2,13 @@ import BuildServerProtocol
 import Foundation
 import LanguageServerProtocol
 import LanguageServerProtocolTransport
+import OSLog
 
-struct TaskLogger: Sendable {
+struct TaskReporter: Sendable {
     private let connection: any Connection
-    private let logger: FileLogger
 
-    init(connection: any Connection, logger: FileLogger) {
+    init(connection: any Connection) {
         self.connection = connection
-        self.logger = logger
     }
 
     func start(id: String? = nil, title: String) -> TaskId {
@@ -18,7 +17,7 @@ struct TaskLogger: Sendable {
         let notification = TaskStartNotification(taskId: id, data: WorkDoneProgressTask(title: title).encodeToLSPAny())
 
         connection.send(notification)
-        logger.info("Start task \(id.id): \(title)")
+        Log.default.info("Start task \(id.id, privacy: .public): \(title, privacy: .public)")
 
         return id
     }
@@ -29,9 +28,9 @@ struct TaskLogger: Sendable {
 
         connection.send(notification)
 
-        let logLevel = status == .ok ? FileLogger.Level.info : FileLogger.Level.error
+        let logLevel = status == .ok ? OSLogType.info : OSLogType.error
         let logMessage = ["\(status)", errorMessage].compactMap { $0 }.joined(separator: ", ")
-        logger.log(logLevel, message: "Finish task \(id.id): \(logMessage)")
+        Log.default.log(level: logLevel, "Finish task \(id.id, privacy: .public): \(logMessage, privacy: .public)")
     }
 
     func finish(id: String, status: StatusCode, error: Error? = nil) {

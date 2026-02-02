@@ -19,42 +19,41 @@ struct CLI: AsyncParsableCommand {
     private func runThrowing() async throws {
         let workingDirectory = FilePath(FileManager.default.currentDirectoryPath)
         let config = try BuildServerConfig(jsonFilePath: workingDirectory.appending("buildServer.json"))
-        let logFileURL = URL(filePath: "\(workingDirectory)/build/swift-bsp.log")
 
-        try? FileManager.default.removeItem(at: logFileURL)
-
-        let logger = FileLogger(
-            fileURL: logFileURL,
-            minLevel: .debug,
-            enabled: config.swiftBSP?.verboseLogging == true
-        )
-
-        let projectFilePath =
-            if let project = config.swiftBSP?.project {
-                workingDirectory.appending(project)
-            } else {
-                findXcodeWorkspaceOrProject(in: workingDirectory)
-            }
+        let projectFilePath = if let project = config.swiftBSP?.project {
+            workingDirectory.appending(project)
+        } else {
+            findXcodeWorkspaceOrProject(in: workingDirectory)
+        }
 
         guard let projectFilePath else {
             throw BuildServerError.cannotDetermineXcodeProject
         }
 
-        logger.info("---------------------------")
-        logger.info("Starting Xcode Build Server")
-        logger.info("directory: \(workingDirectory)")
-        logger.debug("config:    \(config)")
-        logger.info("project:   \(projectFilePath)")
-        logger.info("---------------------------")
+        Log.default.info("Starting in '\(workingDirectory, privacy: .public)' for '\(projectFilePath, privacy: .public)'")
+
+        let messageMirrorFile: FileHandle?
+        if config.swiftBSP?.verboseLogging == true {
+            let fileURL = URL(filePath: "\(workingDirectory)/build/swift-bsp.log")
+            Log.default.info("Logging messages to \(fileURL.path(percentEncoded: false), privacy: .public)")
+
+            try? FileManager.default.removeItem(at: fileURL)
+            try "".write(to: fileURL, atomically: true, encoding: .utf8)
+
+            messageMirrorFile = try FileHandle(forUpdating: fileURL)
+        } else {
+            messageMirrorFile = nil
+        }
+
 
         Task {
             let buildServer = SwiftBSPMessageHandler(
                 projectFilePath: projectFilePath,
                 config: config,
-                logger: logger,
+                messageMirrorFile: messageMirrorFile,
                 onExit: { @Sendable code in
-                    let logLevel = code == 0 ? FileLogger.Level.info : FileLogger.Level.error
-                    logger.log(logLevel, message: "Exiting with code \(code)")
+                    let logLevel = code == 0 ? OSLogType.info : .error
+                    Log.default.log(level: logLevel, "Exiting with code \(code, privacy: .public)")
                     _Exit(code)
                 })
 
@@ -66,7 +65,7 @@ struct CLI: AsyncParsableCommand {
             try? await Task.sleep(for: .seconds(60 * 60 * 24 * 365 * 10))
         }
 
-        logger.info("Exiting!")
+        Log.default.info("Exiting")
     }
 }
 

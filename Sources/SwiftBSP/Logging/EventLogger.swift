@@ -2,8 +2,8 @@ import BuildServerProtocol
 import SwiftBuild
 
 struct EventLogger {
-    let logger: FileLogger
-    let taskLogger: TaskLogger
+    let taskReporter: TaskReporter
+    private let log = Log.buildSystem
 
     func log(events: AsyncStream<SwiftBuildMessage>) {
         Task {
@@ -16,76 +16,96 @@ struct EventLogger {
     func log(event: SwiftBuildMessage) {
         switch event {
         case .planningOperationStarted(let info):
-            _ = taskLogger.start(id: info.planningOperationID, title: "[swift-build] Planning build")
+            _ = taskReporter.start(id: info.planningOperationID, title: "[swift-build] Planning build")
+
         case .planningOperationCompleted(let info):
-            taskLogger.finish(id: info.planningOperationID, status: .ok)
-        case .buildStarted(let info):
-            logger.debug(
-                "Build started: baseDirectory='\(info.baseDirectory.pathString)', derivedDataPath='\(info.derivedDataPath, default: "nil")'"
-            )
-        case .buildDiagnostic(let info):
-            logger.info("Build diagnostic: \(info.message)")
-        case .buildCompleted(let info):
-            switch info.result {
-            case .ok:
-                logger.info("########## Build complete ##########")
-            case .failed:
-                logger.error("########## Build failed ##########")
-            case .cancelled:
-                logger.warning("########## Build cancelled ##########")
-            case .aborted:
-                logger.warning("########## Build aborted ##########")
-            }
-        case .preparationComplete(_):
-            logger.debug("Build preparation complete")
-        case .didUpdateProgress(let info):
-            if info.showInLog {
-                logger.debug("Progress \(info.targetName, default: ""): \(info.message) \(info.percentComplete)%")
-            }
+            taskReporter.finish(id: info.planningOperationID, status: .ok)
+
         case .taskStarted(let info):
-            _ = taskLogger.start(id: String(info.taskID), title: "[swift-build] " + info.executionDescription)
-        case .taskDiagnostic(let info):
-            logger.debug("Task \(info.taskID): \(info.message)")
+            _ = taskReporter.start(id: String(info.taskID), title: "[swift-build] " + info.executionDescription)
+
         case .taskComplete(let info):
             switch info.result {
+
             case .success:
-                taskLogger.finish(id: String(info.taskID), status: .ok)
+                taskReporter.finish(id: String(info.taskID), status: .ok)
+
             case .failed:
-                taskLogger.finish(id: String(info.taskID), status: .error)
+                taskReporter.finish(id: String(info.taskID), status: .error)
+
             case .cancelled:
-                taskLogger.finish(id: String(info.taskID), status: .cancelled)
+                taskReporter.finish(id: String(info.taskID), status: .cancelled)
             }
+
+        case .taskDiagnostic(let info):
+            log.debug("Task \(info.taskID, privacy: .public): \(info.message, privacy: .public)")
+
+        case .buildStarted(let info):
+            let baseDirectory = info.baseDirectory.pathString
+            let derivedData = info.derivedDataPath?.pathString ?? "-"
+            log.debug("Build started: baseDirectory='\(baseDirectory, privacy: .public)', derivedData='\(derivedData, privacy: .public)'")
+
+        case .buildDiagnostic(let info):
+            log.info("Build diagnostic: \(info.message, privacy: .public)")
+
+        case .buildCompleted(let info):
+            switch info.result {
+            case .ok: log.info("########## Build complete ##########")
+            case .failed: log.error("########## Build failed ##########")
+            case .cancelled: log.warning("########## Build cancelled ##########")
+            case .aborted: log.warning("########## Build aborted ##########")
+            }
+
+        case .preparationComplete(_):
+            log.debug("Build preparation complete")
+
+        case .didUpdateProgress(let info):
+            if info.showInLog {
+                log.debug("Progress \(info.targetName ?? "-"): \(info.message) \(info.percentComplete)%")
+            }
+
         case .targetDiagnostic(let info):
-            logger.debug("Target \(info.targetID): \(info.message)")
+            log.debug("Target \(info.targetID, privacy: .public): \(info.message, privacy: .public)")
+
         case .diagnostic(let info):
-            logger.debug("Diagnostic: \(info.message)")
+            log.debug("Diagnostic: \(info.message, privacy: .public)")
+
         case .backtraceFrame:
-            logger.debug(".backtraceFrame")
+            log.debug(".backtraceFrame")
+
         case .reportPathMap:
-            logger.debug(".reportPathMap")
+            log.debug(".reportPathMap")
+
         case .reportBuildDescription(let info):
-            logger.debug("Build description reported: \(info.buildDescriptionID)")
+            log.debug("Build description reported: \(info.buildDescriptionID, privacy: .public)")
+
         case .preparedForIndex(let info):
-            logger.debug("Target \(info.targetGUID): Prepared for index")
+            log.debug("Target \(info.targetGUID, privacy: .public): Prepared for index")
+
         case .buildOutput(let info):
-            logger.debug("Build output: \(info.data)")
+            log.debug("Build output: \(info.data, privacy: .public)")
+
         case .targetStarted(let info):
-            logger.debug(
-                "Target \(info.targetID): Started \(info.targetName) - \(info.targetGUID)"
-            )
+            log.debug("Target \(info.targetID, privacy: .public): Started \(info.targetName, privacy: .public) - \(info.targetGUID, privacy: .public)")
+
         case .targetComplete(let info):
-            logger.debug("Target \(info.targetID): Complete")
+            log.debug("Target \(info.targetID, privacy: .public): Complete")
+
         case .targetOutput(let info):
-            logger.debug("Target \(info.targetID): \(info.data)")
+            log.debug("Target \(info.targetID, privacy: .public): \(info.data, privacy: .public)")
+
         case .targetUpToDate(let info):
-            logger.debug("Target \(info.guid): Up to date")
+            log.debug("Target \(info.guid, privacy: .public): Up to date")
+
         case .taskUpToDate(let info):
-            logger.debug("Task up to date: \(info.taskSignature)")
+            log.debug("Task up to date: \(info.taskSignature, privacy: .public)")
+
         case .taskOutput(let info):
-            logger.debug("Task \(info.taskID): \(info.data)")
+            log.debug("Task \(info.taskID, privacy: .public): \(info.data, privacy: .public)")
+
         case .output(let info):
             if let string = String(data: info.data, encoding: .utf8) {
-                logger.info(string)
+                log.info("\(string, privacy: .public)")
             }
         }
     }

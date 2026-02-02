@@ -27,30 +27,28 @@ final actor SwiftBSPMessageHandler: QueueBasedMessageHandler {
     private let projectDirectoryPath: FilePath
     private let config: BuildServerConfig
     private let connection: JSONRPCConnection
-    private let logger: FileLogger
-    private let taskLogger: TaskLogger
+    private let taskReporter: TaskReporter
 
     init(
         projectFilePath: FilePath,
         config: BuildServerConfig,
-        logger: FileLogger,
+        messageMirrorFile: FileHandle?,
         onExit: @escaping (_ code: Int32) -> Void
     ) {
         self.projectFilePath = projectFilePath
         self.projectDirectoryPath = projectFilePath.removingLastComponent()
         self.config = config
-        self.logger = logger
         self.onExit = onExit
         self.connection = JSONRPCConnection(
-            name: "SwiftBSP",
+            name: "swift-bsp",
             protocol: .bspProtocol,
-            inFD: FileHandle.standardInput,
-            outFD: FileHandle.standardOutput,
-            inputMirrorFile: nil,
-            outputMirrorFile: nil
+            receiveFD: FileHandle.standardInput,
+            sendFD: FileHandle.standardOutput,
+            receiveMirrorFile: messageMirrorFile,
+            sendMirrorFile: messageMirrorFile
         )
 
-        self.taskLogger = TaskLogger(connection: self.connection, logger: logger)
+        self.taskReporter = TaskReporter(connection: self.connection)
     }
 
     package func start() {
@@ -63,7 +61,9 @@ final actor SwiftBSPMessageHandler: QueueBasedMessageHandler {
     }
 
     func handle(notification: some NotificationType) {
-        logger.debug("[Receive] Notification - \(notification)")
+        let notificationType = "\(notification.self)"
+
+        Log.default.debug("[Receive] Notification - \(notificationType, privacy: .public)")
 
         Task {
             switch notification {
@@ -73,22 +73,16 @@ final actor SwiftBSPMessageHandler: QueueBasedMessageHandler {
                 onExit(state == .shutdown ? 0 : 1)
             case _ as OnBuildInitializedNotification:
                 state = .running
-            // case _ as OnBuildLogMessageNotification:
-            //     break
-            // case _ as OnBuildTargetDidChangeNotification:
-            //     break
             case let notification as OnWatchedFilesDidChangeNotification:
                 try await handleOnWatchedFilesDidChange(notification: notification)
+            // case _ as OnBuildLogMessageNotification:
+            // case _ as OnBuildTargetDidChangeNotification:
             // case _ as FileOptionsChangedNotification:
-            //     break
             // case _ as TaskFinishNotification:
-            //     break
             // case _ as TaskProgressNotification:
-            //     break
             // case _ as TaskStartNotification:
-            //     break
             default:
-                logger.error("Unhandled notification type '\(notification.self)'")
+                Log.default.error("Unhandled notification type '\(notificationType, privacy: .public)'")
             }
         }
     }
@@ -98,17 +92,16 @@ final actor SwiftBSPMessageHandler: QueueBasedMessageHandler {
         id: RequestID,
         reply: @escaping @Sendable (LSPResult<Request.Response>) -> Void
     ) async where Request: RequestType {
-        logger.debug("[Receive] Request \(id) - \(request)")
+        let requestType = "\(request.self)"
+        Log.default.debug("[Receive] Request '\(id, privacy: .public)': \(requestType, privacy: .public)")
 
         let requestAndReply = RequestAndReply(request) { response in
             switch response {
             case .success(let message):
                 let messageType = String(describing: type(of: message))
-                let jsonData = try! JSONEncoder(outputFormatting: [.prettyPrinted, .sortedKeys]).encode(message)
-                let jsonString = String(data: jsonData, encoding: .utf8) ?? "?"
-                self.logger.debug("[Send] \(id) \(messageType)- \(jsonString)")
+                Log.default.debug("[Send] Success response '\(id, privacy: .public)': \(messageType, privacy: .public)")
             case .failure:
-                self.logger.error("[Send] \(id) - \(response)")
+                Log.default.error("[Send] Failure response '\(id, privacy: .public)'")
             }
 
             reply(response)
@@ -187,8 +180,7 @@ extension SwiftBSPMessageHandler {
         let bsp = try await SwiftBSP(
             projectFilePath: projectFilePath,
             config: config,
-            taskLogger: taskLogger,
-            logger: logger
+            taskReporter: taskReporter
         )
 
         self.bsp = bsp
@@ -262,7 +254,6 @@ extension SwiftBSPMessageHandler {
 extension SwiftBSPMessageHandler {
     func handleOnWatchedFilesDidChange(notification: OnWatchedFilesDidChangeNotification) async throws {
         guard let bsp, state == .running else { throw BuildServerError.projectNotInitialized }
-        logger.debug("Files changed \(notification.changes.count): \(notification.changes, default: "nil")")
 
         let needsReload = notification.changes.contains { change in
             guard let filePath = change.uri.fileURL?.path(percentEncoded: false) else { return false }

@@ -2,57 +2,19 @@ import ArgumentParser
 import Foundation
 import ToolsProtocolsSwiftExtensions
 
-extension FileLogger {
-    enum Level: String, Comparable, Decodable {
-        case debug, info, warning, error
-
-        private var severity: Int {
-            switch self {
-            case .debug: 0
-            case .info: 1
-            case .warning: 2
-            case .error: 3
-            }
-        }
-
-        static func < (lhs: Level, rhs: Level) -> Bool {
-            lhs.severity < rhs.severity
-        }
-    }
-}
-
 struct FileLogger {
     private let queque = AsyncQueue<Serial>()
     private let fileURL: URL
-    private let minLevel: Level
-    private let enabled: Bool
 
-    public init(fileURL: URL, minLevel: Level, enabled: Bool) {
+    public init(fileURL: URL, deleteExistingFile: Bool) {
         self.fileURL = fileURL
-        self.minLevel = minLevel
-        self.enabled = enabled
+        
+        if deleteExistingFile {
+            try? FileManager.default.removeItem(at: fileURL)
+        }
     }
 
-    func debug(_ message: Sendable) {
-        self.log(.debug, message: message)
-    }
-
-    func info(_ message: Sendable) {
-        self.log(.info, message: message)
-    }
-
-    func warning(_ message: Sendable) {
-        self.log(.warning, message: message)
-    }
-
-    func error(_ message: Sendable) {
-        self.log(.error, message: message)
-    }
-
-    func log(_ level: Level, message: Sendable) {
-        guard enabled else { return }
-        guard level >= minLevel else { return }
-
+    func log(_ message: Sendable) {
         queque.async {
             let date = Date().formatted(
                 .dateTime
@@ -65,7 +27,7 @@ struct FileLogger {
                     .secondFraction(.milliseconds(0))
             )
 
-            let logLine = "[\(date)] \(level.rawValue.padded(8, with: " ", side: .left)): \(message)\n"
+            let logLine = "[\(date)] \(message)\n"
 
             if let handle = try? FileHandle(forWritingTo: fileURL) {
                 handle.seekToEndOfFile()
