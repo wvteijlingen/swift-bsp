@@ -13,7 +13,7 @@ struct BuildServerConfig: Decodable {
 
     init(jsonFilePath: FilePath) throws {
         do {
-            logger.info("Reading configuration from \(jsonFilePath, privacy: .public)")
+            Log.default.debug("Reading configuration from \(jsonFilePath, privacy: .public)")
             let data = try Data(contentsOf: URL(filePath: jsonFilePath.string))
             self = try JSONDecoder().decode(BuildServerConfig.self, from: data)
         } catch {
@@ -24,7 +24,7 @@ struct BuildServerConfig: Decodable {
 
 extension BuildServerConfig {
     struct SwiftBSP: Decodable {
-        let verboseLogging: Bool
+        let verboseLogging: Bool?
         let project: String?
         let configuration: String?
         let runDestination: RunDestination?

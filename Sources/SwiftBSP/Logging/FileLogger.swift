@@ -42,11 +42,11 @@ struct FileLogger {
     }
 
     func warning(_ message: Sendable) {
-        self.log(.info, message: message)
+        self.log(.warning, message: message)
     }
 
     func error(_ message: Sendable) {
-        self.log(.info, message: message)
+        self.log(.error, message: message)
     }
 
     func log(_ level: Level, message: Sendable) {

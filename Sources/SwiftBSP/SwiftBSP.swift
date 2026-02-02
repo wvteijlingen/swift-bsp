@@ -21,6 +21,16 @@ actor SwiftBSP {
     private var config: BuildServerConfig?
     private var buildDescriptionID: SWBBuildDescriptionID?
 
+    private var _configuredBuildRequest: SWBBuildRequest?
+    private var configuredBuildRequest: SWBBuildRequest {
+        get async throws {
+            if let _configuredBuildRequest { return _configuredBuildRequest }
+            let request = try await configureTargets(on: createBuildRequest())
+            _configuredBuildRequest = request
+            return request
+        }
+    }
+
     init(
         projectFilePath: FilePath,
         config: BuildServerConfig,
@@ -35,20 +45,15 @@ actor SwiftBSP {
 
         self.projectFilePath = projectFilePath
         self.arena = SWBArenaInfo(root: swiftBSPFolder, indexEnableDataStore: true)
-//        self.arena = try config.swiftBSP?.scratchPad.map { scratchPad in
-//            let root = try AbsolutePath(validating: scratchPad)
-//            return SWBArenaInfo(root: root, indexEnableDataStore: true)
-//        }
 
         let task = taskLogger.start(title: "Initializing build server")
-
         let service = try await SWBBuildService(connectionMode: .default, variant: .default)
 
         let (session, diagnosticInfo) = await service.createSession(
             name: projectFilePath.string,
             developerPath: "/Applications/Xcode.app/Contents/Developer",
-            cachePath: nil, //swiftBSPFolder.appending(component: "cache").pathString,
-            inferiorProductsPath: nil,  //xcodeBspFolder.appending(component: "inferiorProducts").pathString,
+            cachePath: nil,
+            inferiorProductsPath: nil,
             environment: [:]
         )
 
@@ -77,9 +82,9 @@ actor SwiftBSP {
 
     func loadProject() async throws {
         try await workspaceLoadingQueue.asyncThrowing {
+            self._configuredBuildRequest = nil
             try await self.loadWorkspace()
-            let buildRequest = self.createBuildRequest()
-            self.buildDescriptionID = try await self.loadBuildDescriptionID(buildRequest: buildRequest)
+            self.buildDescriptionID = try await self.loadBuildDescriptionID()
         }.valuePropagatingCancellation
     }
 
@@ -91,46 +96,9 @@ actor SwiftBSP {
         }
     }
 
-    private func createBuildRequest() -> SWBBuildRequest {
-        var buildRequest = SWBBuildRequest()
-        buildRequest.buildCommand = .prepareForIndexing(buildOnlyTheseTargets: nil, enableIndexBuildArena: true)
-        buildRequest.useParallelTargets = true
-        buildRequest.enableIndexBuildArena = true
-        buildRequest.continueBuildingAfterErrors = true
-
-        // Taken from Xcode message dump
-        buildRequest.dependencyScope = .workspace
-        buildRequest.hideShellScriptEnvironment = false
-        buildRequest.useImplicitDependencies = true
-        buildRequest.showNonLoggedProgress = true
-        buildRequest.schemeCommand = .launch
-
-        buildRequest.parameters.arenaInfo = arena
-        buildRequest.parameters.action = "indexbuild"
-        buildRequest.parameters.configurationName = config?.swiftBSP?.configuration ?? "Debug"
-        buildRequest.parameters.activeRunDestination = config?.swiftBSP?.runDestination.map { config in
-            SWBRunDestinationInfo(
-                platform: config.platform ?? config.sdk,
-                sdk: config.sdk,
-                sdkVariant: nil,
-                targetArchitecture: "undefined_arch",
-                supportedArchitectures: [],
-                disableOnlyActiveArch: false
-            )
-        }
-
-        var synthesized = buildRequest.parameters.overrides.synthesized ?? SWBSettingsTable()
-        synthesized.set(value: "NO", for: "ENABLE_XOJIT_PREVIEWS")
-        synthesized.set(value: "NO", for: "ENABLE_PREVIEWS")
-        synthesized.set(value: "YES", for: "ONLY_ACTIVE_ARCH")
-        buildRequest.parameters.overrides.synthesized = synthesized
-
-        return buildRequest
-    }
-
-    private func loadBuildDescriptionID(buildRequest: SWBBuildRequest) async throws -> SWBBuildDescriptionID {
+    private func loadBuildDescriptionID() async throws -> SWBBuildDescriptionID {
         try await taskLogger.log(title: "Generating build description") {
-            let configuredRequest = try await configureTargets(in: buildRequest)  //, onlyMain: false)
+            let configuredRequest = try await configuredBuildRequest
 
             let operation = try await buildServiceSession.createBuildOperationForBuildDescriptionOnly(
                 request: configuredRequest,
@@ -159,21 +127,6 @@ actor SwiftBSP {
 
             return buildDescriptionID
         }
-    }
-
-    private func configureTargets(
-        in buildRequest: SWBBuildRequest,
-        only: [SWBTargetGUID]? = nil // [SWBTargetGUID(rawValue: "320fb9466095fc0f9cd888bb584aebfbd01de5efbdb0778ec2cc312d20ac66e4")]
-    ) async throws -> SWBBuildRequest {
-        var buildRequest = buildRequest
-
-        let workspaceInfo = try await buildServiceSession.workspaceInfo()
-
-        for target in workspaceInfo.targetInfos {
-            buildRequest.add(target: SWBConfiguredTarget(guid: target.guid))
-        }
-
-        return buildRequest
     }
 
     // MARK: - Loaders
@@ -235,12 +188,11 @@ actor SwiftBSP {
                 throw BuildServerError.noWorkspaceInfo
             }
 
-            let buildRequest = createBuildRequest()
-            let configuredRequest = try await configureTargets(in: buildRequest)
+            let buildRequest = try await configuredBuildRequest
 
             let targets: [SWBConfiguredTargetInfo] = try await buildServiceSession.configuredTargets(
                 buildDescription: buildDescriptionID,
-                buildRequest: configuredRequest
+                buildRequest: buildRequest
             )
 
             let buildTargets = try await targets.asyncMap { @Sendable targetInfo in
@@ -287,19 +239,18 @@ actor SwiftBSP {
                 throw BuildServerError.noWorkspaceInfo
             }
 
-            let buildRequest = createBuildRequest()
-            let configuredRequest = try await configureTargets(in: buildRequest)  // , onlyMain: false)
+            let buildRequest = try await configuredBuildRequest
             let configuredTargetIdentifiers = try targetIdentifiers.map { try $0.configuredTargetIdentifier }
 
             let response = try await buildServiceSession.sources(
                 of: configuredTargetIdentifiers,
                 buildDescription: buildDescriptionID,
-                buildRequest: configuredRequest
+                buildRequest: buildRequest
             )
 
             return try response.map { swbSourcesItem -> SourcesItem in
                 let sources = swbSourcesItem.sourceFiles.map { sourceFile in
-                    taskLogger.log(title: "Loading build source: \(sourceFile.path.pathString)") {
+//                    taskLogger.log(title: "Loading build source: \(sourceFile.path.pathString)") {
                         SourceItem(
                             uri: DocumentURI(URL(filePath: sourceFile.path.pathString)),
                             kind: .file,
@@ -310,7 +261,7 @@ actor SwiftBSP {
                                 outputPath: sourceFile.indexOutputPath
                             ).encodeToLSPAny()
                         )
-                    }
+//                    }
                 }
 
                 return SourcesItem(
@@ -329,14 +280,13 @@ actor SwiftBSP {
                 throw BuildServerError.noWorkspaceInfo
             }
 
-            let buildRequest = createBuildRequest()
-            let configuredRequest = try await configureTargets(in: buildRequest) //, only: [targetIdentifier.targetGUID])
+            let buildRequest = try await configuredBuildRequest
 
             return try await buildServiceSession.indexCompilerArguments(
                 of: SwiftBuild.AbsolutePath(validating: file.string),
                 in: targetIdentifier.configuredTargetIdentifier,
                 buildDescription: buildDescriptionID,
-                buildRequest: configuredRequest
+                buildRequest: buildRequest
             )
         }
     }
@@ -349,21 +299,18 @@ actor SwiftBSP {
 
         try await taskLogger.log(title: "Preparing targets: \(ids.formatted())") {
             try await preparationQueue.asyncThrowing {
-                let buildRequest = self.createBuildRequest()
-
-                var configuredRequest = try await self.configureTargets(in: buildRequest)
-
                 let targetGUIDs = try targets.map {
                     try $0.configuredTargetIdentifier.targetGUID.rawValue
                 }
 
-                configuredRequest.buildCommand = .prepareForIndexing(
+                var buildRequest = try await self.configuredBuildRequest
+                buildRequest.buildCommand = .prepareForIndexing(
                     buildOnlyTheseTargets: targetGUIDs,
                     enableIndexBuildArena: true
                 )
 
                 let buildOperation = try await self.buildServiceSession.createBuildOperation(
-                    request: configuredRequest,
+                    request: buildRequest,
                     delegate: self
                 )
 
@@ -393,5 +340,95 @@ extension SwiftBSP: SWBIndexingDelegate {
         environment: [String: String]
     ) async throws -> SWBExternalToolResult {
         .deferred
+    }
+}
+
+extension SwiftBSP {
+    private func createBuildRequest() -> SWBBuildRequest {
+        var buildRequest = SWBBuildRequest()
+        buildRequest.buildCommand = .prepareForIndexing(buildOnlyTheseTargets: nil, enableIndexBuildArena: true)
+        buildRequest.useParallelTargets = true
+        buildRequest.enableIndexBuildArena = true
+        buildRequest.continueBuildingAfterErrors = true
+        buildRequest.containerPath = projectFilePath.string
+
+        // Taken from Xcode message dump
+        buildRequest.dependencyScope = .workspace
+        buildRequest.hideShellScriptEnvironment = false
+        buildRequest.useImplicitDependencies = true
+        buildRequest.showNonLoggedProgress = true
+        buildRequest.schemeCommand = .launch
+
+        buildRequest.parameters.arenaInfo = arena
+        buildRequest.parameters.action = "indexbuild"
+        buildRequest.parameters.configurationName = config?.swiftBSP?.configuration ?? "Debug"
+
+        if let runDestination = config?.swiftBSP?.runDestination {
+            buildRequest.parameters.activeRunDestination = SWBRunDestinationInfo(
+                buildTarget: .toolchainSDK(
+                    platform: runDestination.platform ?? runDestination.sdk,
+                    sdk: runDestination.sdk,
+                    sdkVariant: nil
+                ),
+                targetArchitecture: "undefined_arch",
+                supportedArchitectures: [],
+                disableOnlyActiveArch: false
+            )
+        }
+
+        var overrides = buildRequest.parameters.overrides.commandLine ?? SWBSettingsTable()
+        overrides.set(value: "NO", for: "ENABLE_XOJIT_PREVIEWS")
+        overrides.set(value: "NO", for: "ENABLE_PREVIEWS")
+        overrides.set(value: "NO", for: "COLOR_DIAGNOSTICS")
+        overrides.set(value: "YES", for: "ONLY_ACTIVE_ARCH")
+        buildRequest.parameters.overrides.commandLine = overrides
+
+        return buildRequest
+    }
+
+    private func configureTargets(on buildRequest: SWBBuildRequest) async throws -> SWBBuildRequest {
+        var buildRequest = buildRequest
+        var supportedPlatforms: Set<String>?
+
+        let workspaceInfo = try await buildServiceSession.workspaceInfo()
+
+        for target in workspaceInfo.targetInfos {
+            if target.guid.starts(with: "PACKAGE-") { continue }
+
+            logger.info("Adding target to build request: \(target.targetName) (\(target.guid))")
+            buildRequest.add(target: SWBConfiguredTarget(guid: target.guid))
+
+            if !target.guid.starts(with: "PACKAGE-") {
+                let platforms = try await buildServiceSession.evaluateMacroAsStringList(
+                    "SUPPORTED_PLATFORMS",
+                    level: .target(target.guid),
+                    buildParameters: SWBBuildParameters(),
+                    overrides: nil
+                )
+
+                supportedPlatforms = supportedPlatforms?.intersection(platforms) ?? Set(platforms)
+            }
+        }
+
+        if buildRequest.parameters.activeRunDestination == nil {
+            if let firstPlatform = supportedPlatforms?.sorted().first {
+                logger.warning("No custom run destination set. Using '\(firstPlatform)'")
+
+                buildRequest.parameters.activeRunDestination = SWBRunDestinationInfo(
+                    buildTarget: .toolchainSDK(
+                        platform: firstPlatform,
+                        sdk: firstPlatform,
+                        sdkVariant: nil
+                    ),
+                    targetArchitecture: "undefined_arch",
+                    supportedArchitectures: [],
+                    disableOnlyActiveArch: false
+                )
+            } else {
+                logger.warning("No custom run destination set and could not determine a default destination. This may result in indexing errors.")
+            }
+        }
+
+        return buildRequest
     }
 }

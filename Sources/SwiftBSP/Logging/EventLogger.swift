@@ -39,7 +39,9 @@ struct EventLogger {
         case .preparationComplete(_):
             logger.debug("Build preparation complete")
         case .didUpdateProgress(let info):
-            logger.debug("Progress: \(info.message) \(info.percentComplete)%")
+            if info.showInLog {
+                logger.debug("Progress \(info.targetName, default: ""): \(info.message) \(info.percentComplete)%")
+            }
         case .taskStarted(let info):
             _ = taskLogger.start(id: String(info.taskID), title: "[swift-build] " + info.executionDescription)
         case .taskDiagnostic(let info):

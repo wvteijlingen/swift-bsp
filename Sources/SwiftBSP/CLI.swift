@@ -1,11 +1,9 @@
 import ArgumentParser
-import System
 import Foundation
 import LanguageServerProtocolTransport
-import SwiftBuild
 import OSLog
-
-let logger = Logger(subsystem: "nl.wardvanteijlingen.swift-bsp", category: "")
+import SwiftBuild
+import System
 
 @main
 struct CLI: AsyncParsableCommand {
@@ -13,12 +11,12 @@ struct CLI: AsyncParsableCommand {
         do {
             try await runThrowing()
         } catch {
-            logger.error("Encountered error: \(error.localizedDescription, privacy: .public)")
+            Log.default.error("Encountered error: \(error.localizedDescription, privacy: .public)")
             throw error
         }
     }
 
-    func runThrowing() async throws {
+    private func runThrowing() async throws {
         let workingDirectory = FilePath(FileManager.default.currentDirectoryPath)
         let config = try BuildServerConfig(jsonFilePath: workingDirectory.appending("buildServer.json"))
         let logFileURL = URL(filePath: "\(workingDirectory)/build/swift-bsp.log")
@@ -31,22 +29,23 @@ struct CLI: AsyncParsableCommand {
             enabled: config.swiftBSP?.verboseLogging == true
         )
 
-        let projectFilePath = if let project = config.swiftBSP?.project {
-            workingDirectory.appending(project)
-        } else {
-            findXcodeWorkspaceOrProject(in: workingDirectory)
-        }
+        let projectFilePath =
+            if let project = config.swiftBSP?.project {
+                workingDirectory.appending(project)
+            } else {
+                findXcodeWorkspaceOrProject(in: workingDirectory)
+            }
 
         guard let projectFilePath else {
             throw BuildServerError.cannotDetermineXcodeProject
         }
 
-        logger.info( "---------------------------")
-        logger.info( "Starting Xcode Build Server")
-        logger.info( "directory: \(workingDirectory)")
+        logger.info("---------------------------")
+        logger.info("Starting Xcode Build Server")
+        logger.info("directory: \(workingDirectory)")
         logger.debug("config:    \(config)")
-        logger.info( "project:   \(projectFilePath)")
-        logger.info( "---------------------------")
+        logger.info("project:   \(projectFilePath)")
+        logger.info("---------------------------")
 
         Task {
             let buildServer = SwiftBSPMessageHandler(
@@ -74,11 +73,13 @@ struct CLI: AsyncParsableCommand {
 private func findXcodeWorkspaceOrProject(in directory: FilePath) -> FilePath? {
     let fileManager = FileManager.default
 
-    guard let contents = try? fileManager.contentsOfDirectory(
-        at: URL(filePath: directory.string),
-        includingPropertiesForKeys: nil,
-        options: [.skipsHiddenFiles]
-    ) else {
+    guard
+        let contents = try? fileManager.contentsOfDirectory(
+            at: URL(filePath: directory.string),
+            includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles]
+        )
+    else {
         return nil
     }
 
