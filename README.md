@@ -1,15 +1,15 @@
 # Swift Build Server
 
-Swift Build Server is a *Build Server Protocol* implementation that serves as a bridge between sourcekit-lsp
+Swift BSP is a *Build Server Protocol* implementation that serves as a bridge between sourcekit-lsp
 (Swift's official Language Server Protocol) and your Xcode project.
 
-With Swift Build Server you can **develop for Apple platforms like iOS in any IDE that has support for LSPs**,
+With Swift BSP you can **develop for Apple platforms like iOS in any IDE that has support for LSPs**,
 such as Cursor and VSCode.
 
 ## Installation
 
 ```
-brew install swift-build-server
+brew install swift-bsp
 ```
 
 ## Usage
@@ -23,16 +23,16 @@ brew install swift-build-server
 (`Cmd+Shift+P -> Reload Window`).
 
 > [!IMPORTANT]
-> The value for `argv` must point to the `swift-build-server` binary on your system. If the binary is in your `$PATH`,
-> for example when using Homebrew, you can simply use `swift-build-server`. Otherwise provide the full path.
+> The value for `argv` must point to the `swift-bsp` binary on your system. If the binary is in your `$PATH`,
+> for example when using Homebrew, you can simply use `swift-bsp`. Otherwise provide the full path.
 
 ```json
 {
-  "name": "swift-build-server",
+  "name": "swift-bsp",
   "version": "0.0.1",
   "bspVersion": "2.2.0",
   "languages": ["swift"],
-  "argv": ["swift-build-server"]
+  "argv": ["swift-bsp"]
 
   // Optional configuration, not needed for most projects
   //
@@ -64,7 +64,7 @@ Defaults to `false.`
 
 ## Troubleshooting
 
-Swift Build Server uses the macOS unified logging system. To see logs, open Console.app and filter on 
+Swift BSP uses the macOS unified logging system. To see logs, open Console.app and filter on 
 `subsystem:nl.wardvanteijlingen.swift-bsp`.
 
 To see the JSONRPC messages that are sent between sourcekit-lsp and swift-bsp, set the `verboseLogging` field in
@@ -76,5 +76,5 @@ to `build/swift-bsp.log`.
 - The `configuration` field in `buildServer.json` is not set to a valid Xcode configuration.
 The default value is `Debug`, but the Xcode project might use custom configurations.
 - The `runDestination` field in `buildServer.json` is not set to a valid run destination.
-When not set, Swift Build Server tries to determine a valid run destination, but this heuristic may fail
+When not set, Swift BSP tries to determine a valid run destination, but this heuristic may fail
 or result in a destination that is not appropriate for the Xcode project.
