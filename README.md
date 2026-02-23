@@ -9,7 +9,7 @@ such as Cursor and VSCode.
 ## Installation
 
 ```
-brew install swift-bsp
+brew install wvteijlingen/tap/swift-bsp
 ```
 
 ## Usage
