@@ -7,7 +7,7 @@ import ToolsProtocolsSwiftExtensions
 
 actor SwiftBSP {
     var taskReporter: TaskReporter
-    
+
     private let containerPath: FilePath
     private let arena: SWBArenaInfo
     private let buildServiceSession: SWBBuildServiceSession
@@ -47,8 +47,8 @@ actor SwiftBSP {
 
         let service = try await SWBBuildService(
             connectionMode: .default,
-            variant: .default,
-            serviceBundleURL: URL(filePath:"/Applications/Xcode.app/Contents/SharedFrameworks/SwiftBuild.framework/Versions/A/PlugIns/SWBBuildService.bundle/Contents/MacOS/SWBBuildService")
+            variant: .default
+                // serviceBundleURL: URL(filePath:"/Applications/Xcode.app/Contents/SharedFrameworks/SwiftBuild.framework/Versions/A/PlugIns/SWBBuildService.bundle/Contents/MacOS/SWBBuildService")
         )
 
         let (session, _) = await service.createSession(
