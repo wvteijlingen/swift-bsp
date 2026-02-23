@@ -5,9 +5,9 @@ import LanguageServerProtocolTransport
 import OSLog
 
 struct TaskReporter: Sendable {
-    private let connection: any Connection
+    private let connection: (any Connection)?
 
-    init(connection: any Connection) {
+    init(connection: (any Connection)?) {
         self.connection = connection
     }
 
@@ -16,7 +16,7 @@ struct TaskReporter: Sendable {
         let title = "[swift-bsp] \(title)"
         let notification = TaskStartNotification(taskId: id, data: WorkDoneProgressTask(title: title).encodeToLSPAny())
 
-        connection.send(notification)
+        connection?.send(notification)
         Log.default.info("Start task \(id.id, privacy: .public): \(title, privacy: .public)")
 
         return id
@@ -26,7 +26,7 @@ struct TaskReporter: Sendable {
         let errorMessage = error.map { "Error: \($0.localizedDescription)" }
         let notification = TaskFinishNotification(taskId: id, message: errorMessage, status: status)
 
-        connection.send(notification)
+        connection?.send(notification)
 
         let logLevel = status == .ok ? OSLogType.info : OSLogType.error
         let logMessage = ["\(status)", errorMessage].compactMap { $0 }.joined(separator: ", ")

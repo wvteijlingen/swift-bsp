@@ -24,8 +24,7 @@ let package = Package(
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 .product(name: "BuildServerProtocol", package: "swift-tools-protocols"),
                 .product(name: "LanguageServerProtocolTransport", package: "swift-tools-protocols"),
-                .product(name: "SwiftBuild", package: "swift-build"),
-                .product(name: "SWBBuildServiceBundle", package: "swift-build"),
+                .product(name: "SwiftBuild", package: "swift-build")
             ]
         ),
     ]

@@ -14,30 +14,28 @@ private enum State {
 
 final actor SwiftBSPMessageHandler: QueueBasedMessageHandler {
     public let messageHandlingHelper = QueueBasedMessageHandlerHelper(
-        signpostLoggingCategory: "BSPMessageHandler",
+        signpostLoggingCategory: "SwiftBSPMessageHandler",
         createLoggingScope: false
     )
 
     public let messageHandlingQueue = AsyncQueue<BuildServerMessageDependencyTracker>()
 
     private var state = State.waitingForInitializeRequest
-    private var bsp: SwiftBSP?
+    private var bsp: SwiftBSP
     private let onExit: (_ code: Int32) -> Void
-    private let projectFilePath: FilePath
-    private let projectDirectoryPath: FilePath
-    private let config: BuildServerConfig
+    private let containerPath: FilePath
+    private let containerDirectoryPath: FilePath
     private let connection: JSONRPCConnection
-    private let taskReporter: TaskReporter
 
     init(
-        projectFilePath: FilePath,
+        containerPath: FilePath,
+        arenaPath: FilePath,
         config: BuildServerConfig,
         messageMirrorFile: FileHandle?,
         onExit: @escaping (_ code: Int32) -> Void
-    ) {
-        self.projectFilePath = projectFilePath
-        self.projectDirectoryPath = projectFilePath.removingLastComponent()
-        self.config = config
+    ) async throws {
+        self.containerPath = containerPath
+        self.containerDirectoryPath = containerPath.removingLastComponent()
         self.onExit = onExit
         self.connection = JSONRPCConnection(
             name: "swift-bsp",
@@ -48,16 +46,23 @@ final actor SwiftBSPMessageHandler: QueueBasedMessageHandler {
             sendMirrorFile: messageMirrorFile
         )
 
-        self.taskReporter = TaskReporter(connection: self.connection)
+        self.bsp = try await SwiftBSP(
+            containerPath: containerPath,
+            arenaPath: arenaPath,
+            config: config,
+            taskReporter: TaskReporter(connection: nil)
+        )
     }
 
-    package func start() {
+    package func start() async {
         connection.start(
             receiveHandler: self,
             closeHandler: {
-                //
+                Log.default.info("Connection closed")
             }
         )
+
+        await bsp.setTaskReporter(TaskReporter(connection: connection))
     }
 
     func handle(notification: some NotificationType) {
@@ -167,29 +172,22 @@ extension SwiftBSPMessageHandler {
             throw BuildServerError.projectAlreadyInitialized
         }
 
-        guard let fileURL = request.rootUri.fileURL else {
+        guard let rootPath = request.rootUri.fileURL?.path(percentEncoded: false) else {
             throw ResponseError.invalidParams("InitializeBuildRequest received with invalid rootUri")
         }
 
-        guard fileURL.path(percentEncoded: false) == projectDirectoryPath.string else {
+        guard rootPath == containerDirectoryPath.string else {
             throw ResponseError.invalidParams(
-                "Expected rootUri to be '\(projectDirectoryPath)', actually is '\(fileURL.path(percentEncoded: false))'"
+                "Expected rootUri to be '\(containerDirectoryPath)', actually is '\(rootPath)'"
             )
         }
 
-        let bsp = try await SwiftBSP(
-            projectFilePath: projectFilePath,
-            config: config,
-            taskReporter: taskReporter
-        )
-
-        self.bsp = bsp
         state = .waitingForInitializedNotification
         return await bsp.initialize()
     }
 
     private func handleBuildShutdown(request: BuildShutdownRequest) async throws -> VoidResponse {
-        guard let bsp, state == .running else { throw BuildServerError.projectNotInitialized }
+        guard state == .running else { throw BuildServerError.projectNotInitialized }
 
         try await bsp.closeSession()
         state = .shutdown
@@ -199,7 +197,7 @@ extension SwiftBSPMessageHandler {
     private func handleBuildTargetSources(
         request: BuildTargetSourcesRequest
     ) async throws -> BuildTargetSourcesResponse {
-        guard let bsp, state == .running else { throw BuildServerError.projectNotInitialized }
+        guard state == .running else { throw BuildServerError.projectNotInitialized }
 
         let sourceItems = try await bsp.loadBuildSources(targetIdentifiers: request.targets)
         return BuildTargetSourcesResponse(items: sourceItems)
@@ -208,7 +206,7 @@ extension SwiftBSPMessageHandler {
     private func handleWorkspaceBuildTargets(
         request: WorkspaceBuildTargetsRequest
     ) async throws -> WorkspaceBuildTargetsResponse {
-        guard let bsp, state == .running else { throw BuildServerError.projectNotInitialized }
+        guard state == .running else { throw BuildServerError.projectNotInitialized }
 
         let buildTargets = try await bsp.loadBuildTargets()
 
@@ -216,7 +214,7 @@ extension SwiftBSPMessageHandler {
     }
 
     private func handleBuildTargetPrepare(request: BuildTargetPrepareRequest) async throws -> VoidResponse {
-        guard let bsp, state == .running else { throw BuildServerError.projectNotInitialized }
+        guard state == .running else { throw BuildServerError.projectNotInitialized }
 
         try await bsp.prepareTargets(targets: request.targets)
 
@@ -226,7 +224,7 @@ extension SwiftBSPMessageHandler {
     private func handleTextDocumentSourceKitOptions(
         request: TextDocumentSourceKitOptionsRequest
     ) async throws -> TextDocumentSourceKitOptionsResponse {
-        guard let bsp, state == .running else { throw BuildServerError.projectNotInitialized }
+        guard state == .running else { throw BuildServerError.projectNotInitialized }
 
         guard let fileURL = request.textDocument.uri.fileURL else {
             throw BuildServerError.invalidFileURI(request.textDocument.uri)
@@ -241,7 +239,7 @@ extension SwiftBSPMessageHandler {
     private func handleWorkspaceWaitForBuildSystemUpdates(
         request: WorkspaceWaitForBuildSystemUpdatesRequest
     ) async throws -> VoidResponse {
-        guard let bsp, state == .running else { throw BuildServerError.projectNotInitialized }
+        guard state == .running else { throw BuildServerError.projectNotInitialized }
 
         await bsp.waitForUpdates()
 
@@ -253,15 +251,15 @@ extension SwiftBSPMessageHandler {
 
 extension SwiftBSPMessageHandler {
     func handleOnWatchedFilesDidChange(notification: OnWatchedFilesDidChangeNotification) async throws {
-        guard let bsp, state == .running else { throw BuildServerError.projectNotInitialized }
+        guard state == .running else { throw BuildServerError.projectNotInitialized }
 
         let needsReload = notification.changes.contains { change in
             guard let filePath = change.uri.fileURL?.path(percentEncoded: false) else { return false }
 
             return change.type == .created ||
                 change.type == .deleted ||
-                filePath == projectFilePath.string ||
-                filePath == projectDirectoryPath.appending("buildServer.json").string
+                filePath == containerPath.string ||
+                filePath == containerDirectoryPath.appending("buildServer.json").string
         }
 
         if needsReload {

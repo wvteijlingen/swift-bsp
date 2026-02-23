@@ -2,62 +2,20 @@ import ArgumentParser
 import Foundation
 import LanguageServerProtocolTransport
 import OSLog
+import SKLogging
 import SwiftBuild
 import System
 
 @main
 struct CLI: AsyncParsableCommand {
     func run() async throws {
-        do {
-            try await runThrowing()
-        } catch {
-            Log.default.error("Encountered error: \(error.localizedDescription, privacy: .public)")
-            throw error
-        }
-    }
-
-    private func runThrowing() async throws {
-        let workingDirectory = FilePath(FileManager.default.currentDirectoryPath)
-        let config = try BuildServerConfig(jsonFilePath: workingDirectory.appending("buildServer.json"))
-
-        let projectFilePath = if let project = config.swiftBSP?.project {
-            workingDirectory.appending(project)
-        } else {
-            findXcodeWorkspaceOrProject(in: workingDirectory)
-        }
-
-        guard let projectFilePath else {
-            throw BuildServerError.cannotDetermineXcodeProject
-        }
-
-        Log.default.info("Starting in '\(workingDirectory, privacy: .public)' for '\(projectFilePath, privacy: .public)'")
-
-        let messageMirrorFile: FileHandle?
-        if config.swiftBSP?.verboseLogging == true {
-            let fileURL = URL(filePath: "\(workingDirectory)/build/swift-bsp.log")
-            Log.default.info("Logging messages to \(fileURL.path(percentEncoded: false), privacy: .public)")
-
-            try? FileManager.default.removeItem(at: fileURL)
-            try "".write(to: fileURL, atomically: true, encoding: .utf8)
-
-            messageMirrorFile = try FileHandle(forUpdating: fileURL)
-        } else {
-            messageMirrorFile = nil
-        }
-
-
         Task {
-            let buildServer = SwiftBSPMessageHandler(
-                projectFilePath: projectFilePath,
-                config: config,
-                messageMirrorFile: messageMirrorFile,
-                onExit: { @Sendable code in
-                    let logLevel = code == 0 ? OSLogType.info : .error
-                    Log.default.log(level: logLevel, "Exiting with code \(code, privacy: .public)")
-                    _Exit(code)
-                })
-
-            await buildServer.start()
+            do {
+                try await runServer()
+            } catch {
+                Log.default.error("Encountered error: \(error.localizedDescription, privacy: .public)")
+                throw error
+            }
         }
 
         // Park the main function by sleeping for 10 years
@@ -67,6 +25,62 @@ struct CLI: AsyncParsableCommand {
 
         Log.default.info("Exiting")
     }
+
+    private func runServer() async throws {
+        LoggingScope.configureDefaultLoggingSubsystem("nl.wardvanteijlingen.swift-bsp")
+
+        let workingDirectory = FilePath(FileManager.default.currentDirectoryPath)
+        let arenaPath = workingDirectory.appending("build")
+        let config = try BuildServerConfig(jsonFilePath: workingDirectory.appending("buildServer.json"))
+
+        let containerPath =
+            if let project = config.swiftBSP?.project {
+                workingDirectory.appending(project)
+            } else {
+                findXcodeWorkspaceOrProject(in: workingDirectory)
+            }
+
+        guard let containerPath else { throw BuildServerError.cannotDetermineXcodeProject }
+
+        if !FileManager.default.fileExists(atPath: arenaPath.string) {
+            try FileManager.default.createDirectory(atPath: arenaPath.string, withIntermediateDirectories: true)
+        }
+
+        Log.default.info("Starting in '\(workingDirectory, privacy: .public)' for '\(containerPath, privacy: .public)'")
+        Log.default.info("Configuration: \(String(describing: config.swiftBSP), privacy: .public)")
+
+        let messageMirrorFile: FileHandle? =
+            config.swiftBSP?.verboseLogging == true
+            ? try messageMirrorHandle(workingDirectory: workingDirectory)
+            : nil
+
+        let buildServer = try await SwiftBSPMessageHandler(
+            containerPath: containerPath,
+            arenaPath: arenaPath,
+            config: config,
+            messageMirrorFile: messageMirrorFile,
+            onExit: { @Sendable code in
+                Log.default.log(
+                    level: code == 0 ? OSLogType.info : .error,
+                    "Exiting with code \(code, privacy: .public)"
+                )
+
+                _Exit(code)
+            })
+
+        await buildServer.start()
+    }
+}
+
+private func messageMirrorHandle(workingDirectory: FilePath) throws -> FileHandle {
+    let fileURL = URL(filePath: "\(workingDirectory)/build/swift-bsp.log")
+
+    try? FileManager.default.removeItem(at: fileURL)
+    try "".write(to: fileURL, atomically: true, encoding: .utf8)
+
+    Log.default.info("Logging messages to \(fileURL.path(percentEncoded: false), privacy: .public)")
+    
+    return try FileHandle(forUpdating: fileURL)
 }
 
 private func findXcodeWorkspaceOrProject(in directory: FilePath) -> FilePath? {

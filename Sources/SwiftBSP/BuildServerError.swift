@@ -5,6 +5,7 @@ import SwiftBuild
 enum BuildServerError: Error, LocalizedError {
     case cannotDetermineXcodeProject
     case projectNotInitialized
+    case buildServerNotStarted
     case projectAlreadyInitialized
     case cannotLoadBuildDescriptionID
     case noWorkspaceInfo
@@ -33,6 +34,8 @@ enum BuildServerError: Error, LocalizedError {
             "Project already initialized"
         case .invalidConfig(let error):
             "Could not read configuration: \(error.localizedDescription)"
+        case .buildServerNotStarted:
+            "The build server was not started"
         }
     }
 }
