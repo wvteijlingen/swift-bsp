@@ -15,7 +15,7 @@ let package = Package(
         .package(
             url: "https://github.com/swiftlang/swift-build.git",
             revision: "d3acea2a54048e173bc42148c587e81f73c3ab78"
-        )
+        ),
     ],
     targets: [
         .executableTarget(
@@ -24,8 +24,9 @@ let package = Package(
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 .product(name: "BuildServerProtocol", package: "swift-tools-protocols"),
                 .product(name: "LanguageServerProtocolTransport", package: "swift-tools-protocols"),
-                .product(name: "SwiftBuild", package: "swift-build")
+                .product(name: "SwiftBuild", package: "swift-build"),
+                .product(name: "SWBBuildServiceBundle", package: "swift-build"),
             ]
-        ),
+        )
     ]
 )
