@@ -13,6 +13,7 @@ enum BuildServerError: Error, LocalizedError {
     case cannotCreateBuildTargetIdentifier(from: SWBConfiguredTargetIdentifier)
     case invalidTargetIdentifier(URL)
     case invalidConfig(Error)
+    case invalidHomebrewPrefix
 
     var errorDescription: String? {
         switch self {
@@ -36,6 +37,8 @@ enum BuildServerError: Error, LocalizedError {
             "Could not read configuration: \(error.localizedDescription)"
         case .buildServerNotStarted:
             "The build server was not started"
+        case .invalidHomebrewPrefix:
+            "Invalid Homebrew prefix"
         }
     }
 }
