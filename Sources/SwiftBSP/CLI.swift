@@ -29,6 +29,8 @@ struct CLI: AsyncParsableCommand {
     private func runServer() async throws {
         LoggingScope.configureDefaultLoggingSubsystem("nl.wardvanteijlingen.swift-bsp")
 
+        Log.default.info("Running in \(FileManager.default.currentDirectoryPath, privacy: .public)")
+
         let workingDirectory = FilePath(FileManager.default.currentDirectoryPath)
         let arenaPath = workingDirectory.appending("build")
         let config = try BuildServerConfig(jsonFilePath: workingDirectory.appending("buildServer.json"))
@@ -79,7 +81,7 @@ private func messageMirrorHandle(workingDirectory: FilePath) throws -> FileHandl
     try "".write(to: fileURL, atomically: true, encoding: .utf8)
 
     Log.default.info("Logging messages to \(fileURL.path(percentEncoded: false), privacy: .public)")
-    
+
     return try FileHandle(forUpdating: fileURL)
 }
 

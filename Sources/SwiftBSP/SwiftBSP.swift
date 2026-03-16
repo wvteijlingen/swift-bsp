@@ -45,11 +45,7 @@ actor SwiftBSP {
 
         let task = taskReporter.start(title: "Initializing build server for '\(containerPath.string)'")
 
-        let service = try await SWBBuildService(
-            connectionMode: .default,
-            variant: .default
-                // serviceBundleURL: URL(filePath:"/Applications/Xcode.app/Contents/SharedFrameworks/SwiftBuild.framework/Versions/A/PlugIns/SWBBuildService.bundle/Contents/MacOS/SWBBuildService")
-        )
+        let service = try await SWBBuildService(connectionMode: .default, variant: .default, serviceBundleURL: nil)
 
         let (session, _) = await service.createSession(
             name: containerPath.string,
