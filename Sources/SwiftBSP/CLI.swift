@@ -29,9 +29,7 @@ struct CLI: AsyncParsableCommand {
     private func runServer() async throws {
         LoggingScope.configureDefaultLoggingSubsystem("nl.wardvanteijlingen.swift-bsp")
 
-        #if Homebrew
-            Log.default.info("Running in Homebrew environment")
-        #endif
+        Log.default.info("Running in \(FileManager.default.currentDirectoryPath, privacy: .public)")
 
         let workingDirectory = FilePath(FileManager.default.currentDirectoryPath)
         let arenaPath = workingDirectory.appending("build")

@@ -1,10 +1,10 @@
 # Swift Build Server
 
-Swift BSP is a *Build Server Protocol* implementation that serves as a bridge between sourcekit-lsp
-(Swift's official Language Server Protocol) and your Xcode project.
+Swift BSP is a *Build Server Protocol* implementation that serves as a bridge between sourcekit-lsp (Swift's official
+Language Server Protocol) and your Xcode project.
 
-With Swift BSP you can **develop for Apple platforms like iOS in any IDE that has support for LSPs**,
-such as Cursor and VSCode.
+With Swift BSP you can **develop for Apple platforms like iOS in any IDE that has support for LSPs**, such as Cursor
+and VSCode.
 
 ## Installation
 
@@ -23,8 +23,8 @@ brew install wvteijlingen/tap/swift-bsp
 (`Cmd+Shift+P -> Reload Window`).
 
 > [!IMPORTANT]
-> The value for `argv` must point to the `swift-bsp` binary on your system. If the binary is in your `$PATH`,
-> for example when using Homebrew, you can simply use `swift-bsp`. Otherwise provide the full path.
+> The value for `argv` must point to the `swift-bsp` binary on your system. When installed with a default Homebrew
+> setup, this will be `/opt/homebrew/bin/swift-bsp`.
 
 ```json
 {
@@ -32,7 +32,7 @@ brew install wvteijlingen/tap/swift-bsp
   "version": "0.0.1",
   "bspVersion": "2.2.0",
   "languages": ["swift"],
-  "argv": ["swift-bsp"]
+  "argv": ["/opt/homebrew/bin/swift-bsp"]
 
   // Optional configuration, not needed for most projects
   //

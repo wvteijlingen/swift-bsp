@@ -1,12 +1,10 @@
 import Foundation
-import SwiftBuild
 import RegexBuilder
+import SwiftBuild
 
 extension SWBConfiguredTargetIdentifier {
     var sdkVariant: String? {
-
         let variantRef = Reference<Substring>()
-
         let regex = Regex {
             Anchor.startOfSubject
             OneOrMore(.anyNonNewline)

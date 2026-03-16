@@ -9,9 +9,6 @@ let package = Package(
     products: [
         .executable(name: "swift-bsp", targets: ["SwiftBSP"])
     ],
-    traits: [
-        Trait(name: "Homebrew")
-    ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.2.0"),
         .package(url: "https://github.com/swiftlang/swift-tools-protocols.git", from: "0.0.9"),

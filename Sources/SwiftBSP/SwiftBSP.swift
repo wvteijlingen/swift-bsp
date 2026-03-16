@@ -45,20 +45,7 @@ actor SwiftBSP {
 
         let task = taskReporter.start(title: "Initializing build server for '\(containerPath.string)'")
 
-        #if Homebrew
-            let prefixPath = try await Homebrew.homebrewPrefixPath()
-            let serviceBundleURL: URL? = URL(filePath: "\(prefixPath.string)/lib/SWBBuildServiceBundle")
-        #else
-            let serviceBundleURL: URL? = nil
-        #endif
-
-        Log.default.info("Using SWBBuildServiceBundle at: \(serviceBundleURL?.path ?? "default location")")
-
-        let service = try await SWBBuildService(
-            connectionMode: .default,
-            variant: .default,
-            serviceBundleURL: serviceBundleURL,
-        )
+        let service = try await SWBBuildService(connectionMode: .default, variant: .default, serviceBundleURL: nil)
 
         let (session, _) = await service.createSession(
             name: containerPath.string,
