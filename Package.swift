@@ -10,11 +10,11 @@ let package = Package(
         .executable(name: "swift-bsp", targets: ["SwiftBSP"])
     ],
     dependencies: [
-        .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.2.0"),
-        .package(url: "https://github.com/swiftlang/swift-tools-protocols.git", from: "0.0.9"),
+        .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.7.1"),
+        .package(url: "https://github.com/swiftlang/swift-tools-protocols.git", from: "0.0.10"),
         .package(
             url: "https://github.com/swiftlang/swift-build.git",
-            revision: "d3acea2a54048e173bc42148c587e81f73c3ab78"
+            revision: "fc3609a1658bc5e119dc38906eb8049a9e8b24a1"
         ),
     ],
     targets: [
