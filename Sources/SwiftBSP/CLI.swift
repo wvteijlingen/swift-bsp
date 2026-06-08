@@ -32,8 +32,13 @@ struct CLI: AsyncParsableCommand {
         Log.default.info("Running in \(FileManager.default.currentDirectoryPath, privacy: .public)")
 
         let workingDirectory = FilePath(FileManager.default.currentDirectoryPath)
-        let arenaPath = workingDirectory.appending("build")
         let config = try BuildServerConfig(jsonFilePath: workingDirectory.appending("buildServer.json"))
+        let configuredScratchPath = config.swiftBSP?.scratchPath ?? FilePath("build")
+        let scratchPath = if configuredScratchPath.isAbsolute {
+            configuredScratchPath
+        } else {
+            workingDirectory.appending(configuredScratchPath.string)
+        }
 
         let containerPath =
             if let project = config.swiftBSP?.project {
@@ -44,8 +49,8 @@ struct CLI: AsyncParsableCommand {
 
         guard let containerPath else { throw BuildServerError.cannotDetermineXcodeProject }
 
-        if !FileManager.default.fileExists(atPath: arenaPath.string) {
-            try FileManager.default.createDirectory(atPath: arenaPath.string, withIntermediateDirectories: true)
+        if !FileManager.default.fileExists(atPath: scratchPath.string) {
+            try FileManager.default.createDirectory(atPath: scratchPath.string, withIntermediateDirectories: true)
         }
 
         Log.default.info("Starting in '\(workingDirectory, privacy: .public)' for '\(containerPath, privacy: .public)'")
@@ -56,9 +61,9 @@ struct CLI: AsyncParsableCommand {
             ? try messageMirrorHandle(workingDirectory: workingDirectory)
             : nil
 
-        let buildServer = try await SwiftBSPMessageHandler(
+        let server = try await Server(
             containerPath: containerPath,
-            arenaPath: arenaPath,
+            scratchPath: scratchPath,
             config: config,
             messageMirrorFile: messageMirrorFile,
             onExit: { @Sendable code in
@@ -68,9 +73,10 @@ struct CLI: AsyncParsableCommand {
                 )
 
                 _Exit(code)
-            })
+            }
+        )
 
-        await buildServer.start()
+        await server.start()
     }
 }
 

@@ -16,6 +16,8 @@ let package = Package(
             url: "https://github.com/swiftlang/swift-build.git",
             revision: "fc3609a1658bc5e119dc38906eb8049a9e8b24a1"
         ),
+        .package(url: "https://github.com/swiftlang/swift-subprocess.git", .upToNextMinor(from: "0.5.0")),
+        .package(url: "https://github.com/tuist/XcodeProj.git", .upToNextMajor(from: "8.12.0"))
     ],
     targets: [
         .executableTarget(
@@ -26,6 +28,11 @@ let package = Package(
                 .product(name: "LanguageServerProtocolTransport", package: "swift-tools-protocols"),
                 .product(name: "SwiftBuild", package: "swift-build"),
                 .product(name: "SWBBuildServiceBundle", package: "swift-build"),
+                .product(name: "Subprocess", package: "swift-subprocess"),
+                .product(name: "XcodeProj", package: "XcodeProj")
+            ],
+            resources: [
+                .copy("Xcode/osa.js")
             ]
         )
     ]

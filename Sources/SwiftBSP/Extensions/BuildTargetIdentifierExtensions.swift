@@ -2,6 +2,7 @@ import BuildServerProtocol
 import Foundation
 import SWBProtocol
 import SwiftBuild
+import XcodeProj
 
 extension BuildTargetIdentifier {
     private static let scheme = "swift-bsp"
@@ -9,7 +10,7 @@ extension BuildTargetIdentifier {
     init(configuredTargetIdentifier: SWBConfiguredTargetIdentifier) throws {
         var components = URLComponents()
         components.scheme = Self.scheme
-        components.host = "configured-target"
+        components.host = "swift-build-configured-target"
         components.queryItems = [
             URLQueryItem(
                 name: "targetGUID",
@@ -26,33 +27,55 @@ extension BuildTargetIdentifier {
         ]
 
         guard let url = components.url else {
-            throw BuildServerError.cannotCreateBuildTargetIdentifier(from: configuredTargetIdentifier)
+            throw BuildServerError.cannotCreateBuildTargetIdentifier(from: configuredTargetIdentifier.rawGUID)
         }
 
         self.init(uri: URI(url))
     }
 
-    var configuredTargetGUID: String {
-        get throws {
-            try configuredTargetIdentifier.rawGUID
+    init(xcodeScheme: XCScheme) throws {
+        var components = URLComponents()
+        components.scheme = Self.scheme
+        components.host = "xcode-scheme"
+        components.queryItems = [
+            URLQueryItem(
+                name: "name",
+                value: xcodeScheme.name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)
+            )
+        ]
+
+        guard let url = components.url else {
+            throw BuildServerError.cannotCreateBuildTargetIdentifier(from: xcodeScheme.name)
         }
+
+        self.init(uri: URI(url))
     }
 
-    var targetGUID: SWBTargetGUID {
-        get throws {
-            try configuredTargetIdentifier.targetGUID
-        }
-    }
 
-    var configuredTargetIdentifier: SWBConfiguredTargetIdentifier {
+    var xcodeTarget: XcodeTargetIdentifier? {
         get throws {
-            guard let components = URLComponents(url: uri.arbitrarySchemeURL, resolvingAgainstBaseURL: false) else {
+            let components = try components
+
+            guard components.host == "xcode-scheme" else { return nil }
+
+            let schemeName = components.queryItems?
+                .last { $0.name == "name" }?
+                .value?
+                .removingPercentEncoding
+
+            guard let schemeName else {
                 throw BuildServerError.invalidTargetIdentifier(uri.arbitrarySchemeURL)
             }
 
-            guard components.scheme == Self.scheme, components.host == "configured-target" else {
-                throw BuildServerError.invalidTargetIdentifier(uri.arbitrarySchemeURL)
-            }
+            return XcodeTargetIdentifier(schemeName: schemeName)
+        }
+    }
+
+    var swiftBuildTarget: SWBConfiguredTargetIdentifier? {
+        get throws {
+            let components = try components
+
+            guard components.host == "swift-build-configured-target" else { return nil }
 
             let targetGUID = components.queryItems?
                 .last { $0.name == "targetGUID" }?
@@ -72,6 +95,20 @@ extension BuildTargetIdentifier {
                 rawGUID: configuredTargetGUID,
                 targetGUID: SWBTargetGUID(rawValue: targetGUID)
             )
+        }
+    }
+
+    private var components: URLComponents {
+        get throws {
+            guard let components = URLComponents(url: uri.arbitrarySchemeURL, resolvingAgainstBaseURL: false) else {
+                throw BuildServerError.invalidTargetIdentifier(uri.arbitrarySchemeURL)
+            }
+
+            guard components.scheme == Self.scheme else {
+                throw BuildServerError.invalidTargetIdentifier(uri.arbitrarySchemeURL)
+            }
+
+            return components
         }
     }
 }

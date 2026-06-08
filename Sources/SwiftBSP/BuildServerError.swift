@@ -10,12 +10,18 @@ enum BuildServerError: Error, LocalizedError {
     case cannotLoadBuildDescriptionID
     case noWorkspaceInfo
     case invalidFileURI(URI)
-    case cannotCreateBuildTargetIdentifier(from: SWBConfiguredTargetIdentifier)
+    case cannotCreateBuildTargetIdentifier(from: String)
     case invalidTargetIdentifier(URL)
     case invalidConfig(Error)
+    case generic(String)
+    case subprocessFailure(String)
 
     var errorDescription: String? {
         switch self {
+        case .generic(let message):
+            message
+        case .subprocessFailure(let message):
+            "Subprocess failure: \(message)"
         case .cannotDetermineXcodeProject:
             "Cannot determine Xcode project or workspace. Provide the filename as an argument using '--project'"
         case .cannotCreateBuildTargetIdentifier(let from):

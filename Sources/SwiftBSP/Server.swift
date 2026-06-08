@@ -12,7 +12,7 @@ private enum State {
     case shutdown
 }
 
-final actor SwiftBSPMessageHandler: QueueBasedMessageHandler {
+final actor Server: QueueBasedMessageHandler {
     public let messageHandlingHelper = QueueBasedMessageHandlerHelper(
         signpostLoggingCategory: "SwiftBSPMessageHandler",
         createLoggingScope: false
@@ -21,15 +21,18 @@ final actor SwiftBSPMessageHandler: QueueBasedMessageHandler {
     public let messageHandlingQueue = AsyncQueue<BuildServerMessageDependencyTracker>()
 
     private var state = State.waitingForInitializeRequest
-    private var bsp: SwiftBSP
     private let onExit: (_ code: Int32) -> Void
     private let containerPath: FilePath
     private let containerDirectoryPath: FilePath
     private let connection: JSONRPCConnection
+    private var taskReporter = TaskReporter(connection: nil)
+
+    private var swiftBuildAdapter: any Adapter<SwiftBuildAdapter.TargetIdentifier>
+    private var xcodeAdapter: any Adapter<XcodeAdapter.TargetIdentifier>
 
     init(
         containerPath: FilePath,
-        arenaPath: FilePath,
+        scratchPath: FilePath,
         config: BuildServerConfig,
         messageMirrorFile: FileHandle?,
         onExit: @escaping (_ code: Int32) -> Void
@@ -39,19 +42,21 @@ final actor SwiftBSPMessageHandler: QueueBasedMessageHandler {
         self.onExit = onExit
         self.connection = JSONRPCConnection(
             name: "swift-bsp",
-            protocol: .bspProtocol,
+            protocol: .bspProtocolExtended,
             receiveFD: FileHandle.standardInput,
             sendFD: FileHandle.standardOutput,
             receiveMirrorFile: messageMirrorFile,
             sendMirrorFile: messageMirrorFile
         )
 
-        self.bsp = try await SwiftBSP(
+        self.swiftBuildAdapter = try await SwiftBuildAdapter(
             containerPath: containerPath,
-            arenaPath: arenaPath,
+            scratchPath: scratchPath,
             config: config,
             taskReporter: TaskReporter(connection: nil)
         )
+
+        self.xcodeAdapter = try XcodeAdapter(containerPath: containerPath)
     }
 
     package func start() async {
@@ -62,7 +67,9 @@ final actor SwiftBSPMessageHandler: QueueBasedMessageHandler {
             }
         )
 
-        await bsp.setTaskReporter(TaskReporter(connection: connection))
+        taskReporter = TaskReporter(connection: connection)
+        await swiftBuildAdapter.setTaskReporter(TaskReporter(connection: connection))
+        await xcodeAdapter.setTaskReporter(TaskReporter(connection: connection))
     }
 
     func handle(notification: some NotificationType) {
@@ -116,7 +123,9 @@ final actor SwiftBSPMessageHandler: QueueBasedMessageHandler {
             let state = self.state
             guard state == .running else {
                 await requestAndReply.reply {
-                    throw ResponseError.requestFailed("Request '\(String(describing: type(of: requestAndReply.params)))' received while the build server is '\(state)'")
+                    throw ResponseError.requestFailed(
+                        "Request '\(String(describing: type(of: requestAndReply.params)))' received while the build server is '\(state)'"
+                    )
                 }
                 return
             }
@@ -158,6 +167,18 @@ final actor SwiftBSPMessageHandler: QueueBasedMessageHandler {
                 try await handleWorkspaceWaitForBuildSystemUpdates(request: req.params)
             }
 
+        // Extended requests
+
+        case let req as RequestAndReply<BuildTargetDestinationsRequest>:
+            await req.reply {
+                try await handleBuildTargetDestinations(request: req.params)
+            }
+
+        case let req as RequestAndReply<BuildTargetCompileRequest>:
+            await req.reply {
+                try await handleBuildTargetCompile(request: req.params)
+            }
+
         default:
             reply(.failure(.requestNotImplemented(Request.self)))
         }
@@ -166,7 +187,7 @@ final actor SwiftBSPMessageHandler: QueueBasedMessageHandler {
 
 // MARK: - Request Handlers
 
-extension SwiftBSPMessageHandler {
+extension Server {
     private func handle(request: InitializeBuildRequest) async throws -> InitializeBuildResponse {
         guard state == .waitingForInitializeRequest else {
             throw BuildServerError.projectAlreadyInitialized
@@ -183,13 +204,44 @@ extension SwiftBSPMessageHandler {
         }
 
         state = .waitingForInitializedNotification
-        return await bsp.initialize()
+
+        let languageIds = [Language.swift, .c, .cpp, .objective_c, .objective_cpp]
+
+        _ = await xcodeAdapter.initialize()
+        let data = await swiftBuildAdapter.initialize()
+
+        return InitializeBuildResponse(
+            displayName: "swift-bsp",
+            version: "0.0.2",
+            bspVersion: "2.2.0",
+            capabilities:
+                BuildServerCapabilities(
+                    compileProvider: CompileProvider(languageIds: languageIds),
+                    testProvider: TestProvider(languageIds: languageIds),
+                    runProvider: RunProvider(languageIds: languageIds),
+                    debugProvider: nil,
+                    inverseSourcesProvider: false,
+                    dependencySourcesProvider: false,
+                    resourcesProvider: false,
+                    outputPathsProvider: false,
+                    buildTargetChangedProvider: false,
+                    jvmRunEnvironmentProvider: false,
+                    jvmTestEnvironmentProvider: false,
+                    cargoFeaturesProvider: false,
+                    canReload: true,
+                    jvmCompileClasspathProvider: false
+                ),
+            dataKind: .sourceKit,
+            data: data
+        )
     }
 
     private func handleBuildShutdown(request: BuildShutdownRequest) async throws -> VoidResponse {
         guard state == .running else { throw BuildServerError.projectNotInitialized }
 
-        try await bsp.closeSession()
+        try await swiftBuildAdapter.closeSession()
+        try await xcodeAdapter.closeSession()
+
         state = .shutdown
         return VoidResponse()
     }
@@ -199,8 +251,18 @@ extension SwiftBSPMessageHandler {
     ) async throws -> BuildTargetSourcesResponse {
         guard state == .running else { throw BuildServerError.projectNotInitialized }
 
-        let sourceItems = try await bsp.loadBuildSources(targetIdentifiers: request.targets)
-        return BuildTargetSourcesResponse(items: sourceItems)
+        let swiftBuildTargets = try request.targets.compactMap { targetIdentifier in
+            try targetIdentifier.swiftBuildTarget
+        }
+
+        let xcodeTargets = try request.targets.compactMap { targetIdentifier in
+            try targetIdentifier.xcodeTarget
+        }
+
+        let swiftBuildItems = try await swiftBuildAdapter.loadBuildSources(targetIdentifiers: swiftBuildTargets)
+        let xcodeItems = try await xcodeAdapter.loadBuildSources(targetIdentifiers: xcodeTargets)
+
+        return BuildTargetSourcesResponse(items: swiftBuildItems + xcodeItems)
     }
 
     private func handleWorkspaceBuildTargets(
@@ -208,15 +270,25 @@ extension SwiftBSPMessageHandler {
     ) async throws -> WorkspaceBuildTargetsResponse {
         guard state == .running else { throw BuildServerError.projectNotInitialized }
 
-        let buildTargets = try await bsp.loadBuildTargets()
+//        let swiftBuildTargets = try await swiftBuildAdapter.loadBuildTargets()
+        let xcodeTargets = try await xcodeAdapter.loadBuildTargets()
 
-        return WorkspaceBuildTargetsResponse(targets: buildTargets)
+        return WorkspaceBuildTargetsResponse(targets: xcodeTargets)
     }
 
     private func handleBuildTargetPrepare(request: BuildTargetPrepareRequest) async throws -> VoidResponse {
         guard state == .running else { throw BuildServerError.projectNotInitialized }
 
-        try await bsp.prepareTargets(targets: request.targets)
+        let swiftBuildTargets = try request.targets.compactMap { targetIdentifier in
+            try targetIdentifier.swiftBuildTarget
+        }
+
+        let xcodeTargets = try request.targets.compactMap { targetIdentifier in
+            try targetIdentifier.xcodeTarget
+        }
+
+        try await swiftBuildAdapter.prepareTargets(targets: swiftBuildTargets)
+        try await xcodeAdapter.prepareTargets(targets: xcodeTargets)
 
         return VoidResponse()
     }
@@ -232,7 +304,14 @@ extension SwiftBSPMessageHandler {
 
         let filePath = FilePath(fileURL.path(percentEncoded: false))
 
-        let arguments = try await bsp.loadCompilerArguments(file: filePath, targetIdentifier: request.target)
+        let arguments = if let target = try request.target.swiftBuildTarget {
+            try await swiftBuildAdapter.loadCompilerArguments(file: filePath, targetIdentifier: target)
+        } else if let target = try request.target.xcodeTarget {
+            try await xcodeAdapter.loadCompilerArguments(file: filePath, targetIdentifier: target)
+        } else {
+            throw BuildServerError.invalidTargetIdentifier(request.target.uri.arbitrarySchemeURL)
+        }
+
         return TextDocumentSourceKitOptionsResponse(compilerArguments: arguments)
     }
 
@@ -241,7 +320,8 @@ extension SwiftBSPMessageHandler {
     ) async throws -> VoidResponse {
         guard state == .running else { throw BuildServerError.projectNotInitialized }
 
-        await bsp.waitForUpdates()
+        await swiftBuildAdapter.waitForUpdates()
+        await xcodeAdapter.waitForUpdates()
 
         return VoidResponse()
     }
@@ -249,7 +329,7 @@ extension SwiftBSPMessageHandler {
 
 // MARK: - Notification Handlers
 
-extension SwiftBSPMessageHandler {
+extension Server {
     func handleOnWatchedFilesDidChange(notification: OnWatchedFilesDidChangeNotification) async throws {
         guard state == .running else { throw BuildServerError.projectNotInitialized }
 
@@ -263,8 +343,49 @@ extension SwiftBSPMessageHandler {
         }
 
         if needsReload {
-            try await bsp.loadProject()
+            try await swiftBuildAdapter.loadProject()
+            try await xcodeAdapter.loadProject()
             connection.send(OnBuildTargetDidChangeNotification(changes: nil))
         }
+    }
+}
+
+// MARK: - Extended Request Handlers
+
+extension Server {
+    func handleBuildTargetDestinations(
+        request: BuildTargetDestinationsRequest
+    ) async throws -> BuildTargetDestinationsRequest.Response {
+        guard state == .running else { throw BuildServerError.projectNotInitialized }
+
+        let destinations = if let target = try request.target.swiftBuildTarget {
+            try await swiftBuildAdapter.loadBuildTargetDestinations(targetIdentifier: target)
+        } else if let target = try request.target.xcodeTarget {
+            try await xcodeAdapter.loadBuildTargetDestinations(targetIdentifier: target)
+        } else {
+            throw BuildServerError.invalidTargetIdentifier(request.target.uri.arbitrarySchemeURL)
+        }
+
+        return BuildTargetDestinationsResponse(destinations: destinations)
+    }
+
+    func handleBuildTargetCompile(
+        request: BuildTargetCompileRequest
+    ) async throws -> BuildTargetCompileRequest.Response {
+        guard state == .running else { throw BuildServerError.projectNotInitialized }
+
+        let xcodeTargets = try request.targets.compactMap { targetIdentifier in
+            try targetIdentifier.xcodeTarget
+        }
+
+        if xcodeTargets.count > 1 {
+            throw BuildServerError.generic("Cannot compile more than one target at a time")
+        }
+
+        guard let target = xcodeTargets.first else {
+            throw BuildServerError.generic("No valid compile targets specified")
+        }
+
+        return try await xcodeAdapter.compile(targetIdentifier: target, destination: request.destination)
     }
 }

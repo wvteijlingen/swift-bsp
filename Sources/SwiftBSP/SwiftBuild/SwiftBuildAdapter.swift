@@ -5,7 +5,28 @@ import SwiftBuild
 import System
 import ToolsProtocolsSwiftExtensions
 
-actor SwiftBSP {
+protocol Adapter<TargetIdentifier>: Actor {
+    associatedtype TargetIdentifier
+
+    func initialize() -> LSPAny?
+    func closeSession() async throws
+    func loadBuildTargets() async throws -> [BuildTarget]
+    func loadBuildSources(targetIdentifiers: [TargetIdentifier]) async throws -> [SourcesItem]
+    func loadBuildTargetDestinations(targetIdentifier: TargetIdentifier) async throws -> [BuildTargetDestination]
+    func loadCompilerArguments(file: FilePath, targetIdentifier: TargetIdentifier) async throws -> [String]
+    func prepareTargets(targets: [TargetIdentifier]) async throws
+
+    func compile(
+        targetIdentifier: TargetIdentifier,
+        destination: BuildTargetDestinationIdentifier?
+    ) async throws -> BuildTargetCompileResponse
+
+    func setTaskReporter(_ taskReporter: TaskReporter)
+    func waitForUpdates() async
+    func loadProject() async throws
+}
+
+actor SwiftBuildAdapter: Adapter {
     var taskReporter: TaskReporter
 
     private let containerPath: FilePath
@@ -32,7 +53,7 @@ actor SwiftBSP {
 
     init(
         containerPath: FilePath,
-        arenaPath: FilePath,
+        scratchPath: FilePath,
         config: BuildServerConfig,
         taskReporter: TaskReporter
     ) async throws {
@@ -41,7 +62,7 @@ actor SwiftBSP {
         self.eventLogger = EventLogger(taskReporter: taskReporter)
 
         self.containerPath = containerPath
-        self.arena = SWBArenaInfo(root: arenaPath, indexEnableDataStore: true)
+        self.arena = SWBArenaInfo(root: scratchPath.appending("swift-build"), indexEnableDataStore: true)
 
         let task = taskReporter.start(title: "Initializing build server for '\(containerPath.string)'")
 
@@ -136,52 +157,27 @@ actor SwiftBSP {
     }
 
     // InitializeBuildRequest
-    func initialize() -> InitializeBuildResponse {
-        let languageIds = [Language.swift, .c, .cpp, .objective_c, .objective_cpp]
-
-        return InitializeBuildResponse(
-            displayName: "swift-bsp \(buildServiceSession.uid)",
-            version: "0.0.1",
-            bspVersion: "2.2.0",
-            capabilities:
-                BuildServerCapabilities(
-                    compileProvider: CompileProvider(languageIds: languageIds),
-                    testProvider: TestProvider(languageIds: languageIds),
-                    runProvider: RunProvider(languageIds: languageIds),
-                    debugProvider: nil,
-                    inverseSourcesProvider: nil,
-                    dependencySourcesProvider: nil,
-                    resourcesProvider: nil,
-                    outputPathsProvider: nil,
-                    buildTargetChangedProvider: nil,
-                    jvmRunEnvironmentProvider: nil,
-                    jvmTestEnvironmentProvider: nil,
-                    cargoFeaturesProvider: nil,
-                    canReload: nil,
-                    jvmCompileClasspathProvider: nil
+    func initialize() -> LSPAny? {
+        return SourceKitInitializeBuildResponseData(
+            indexDatabasePath: arena.indexDataStoreFolderPath,
+            indexStorePath: arena.indexDataStoreFolderPath,
+            outputPathsProvider: true,
+            prepareProvider: true,
+            sourceKitOptionsProvider: true,
+            watchers: [
+                FileSystemWatcher(globPattern: containerPath.string, kind: .change),
+                FileSystemWatcher(
+                    globPattern: containerPath.removingLastComponent().appending("buildServer.json").string,
+                    kind: .change
                 ),
-            dataKind: .sourceKit,
-            data: SourceKitInitializeBuildResponseData(
-                indexDatabasePath: arena.indexDataStoreFolderPath,
-                indexStorePath: arena.indexDataStoreFolderPath,
-                outputPathsProvider: true,
-                prepareProvider: true,
-                sourceKitOptionsProvider: true,
-                watchers: [
-                    FileSystemWatcher(globPattern: containerPath.string, kind: .change),
-                    FileSystemWatcher(
-                        globPattern: containerPath.removingLastComponent().appending("buildServer.json").string,
-                        kind: .change
-                    ),
-                    FileSystemWatcher(globPattern: "**/*.swift", kind: [.create, .delete]),
-                ]
-            ).encodeToLSPAny()
-        )
+                FileSystemWatcher(globPattern: "**/*.swift", kind: [.create, .delete]),
+            ]
+        ).encodeToLSPAny()
     }
 
     // WorkspaceBuildTargetsRequest
     func loadBuildTargets() async throws -> [BuildTarget] {
-        try await taskReporter.log(title: "Loading targets") {
+        try await taskReporter.log(title: "Loading Swift Build targets") {
             guard let buildDescriptionID = buildDescriptionID else {
                 throw BuildServerError.noWorkspaceInfo
             }
@@ -195,7 +191,7 @@ actor SwiftBSP {
 
             let buildTargets = try await targets.asyncMap { @Sendable targetInfo in
                 try await taskReporter.log(
-                    title: "Loading target: \(targetInfo.name) (\(targetInfo.identifier.targetGUID.rawValue))"
+                    title: "Loading Swift Build target '\(targetInfo.name)'"
                 ) {
                     let tags = try await buildServiceSession.evaluateMacroAsStringList(
                         "BUILD_SERVER_PROTOCOL_TARGET_TAGS",
@@ -206,20 +202,27 @@ actor SwiftBSP {
                         !$0.isEmpty
                     }.map {
                         BuildTargetTag(rawValue: $0)
-                    }
+                    }.appending(contentsOf: [.noIDE])
 
                     let toolchain = targetInfo.toolchain.map { toolchain in
                         DocumentURI(filePath: toolchain.pathString, isDirectory: true)
                     }
 
+                    let displayName = "\(targetInfo.name) (\(targetInfo.identifier.sdkVariant, default: "unknown SDK"))"
+
                     let target = BuildTarget(
                         id: try BuildTargetIdentifier(configuredTargetIdentifier: targetInfo.identifier),
-                        displayName: "\(targetInfo.name) (\(targetInfo.identifier.sdkVariant, default: "unknown SDK"))",
+                        displayName: displayName,
                         baseDirectory: nil,
                         tags: tags,
-                        capabilities: BuildTargetCapabilities(),
+                        capabilities: BuildTargetCapabilities(
+                            canCompile: false,
+                            canTest: false,
+                            canRun: false,
+                            canDebug: false
+                        ),
                         languageIds: [.c, .cpp, .objective_c, .objective_cpp, .swift],
-                        dependencies: [],  //allDependencies,
+                        dependencies: [],
                         dataKind: .sourceKit,
                         data: SourceKitBuildTarget(toolchain: toolchain).encodeToLSPAny()
                     )
@@ -233,17 +236,17 @@ actor SwiftBSP {
     }
 
     // BuildTargetSourcesRequest
-    func loadBuildSources(targetIdentifiers: [BuildTargetIdentifier]) async throws -> [SourcesItem] {
-        try await taskReporter.log(title: "Loading build sources for targets \(targetIdentifiers.map(\.uri))") {
+    func loadBuildSources(targetIdentifiers: [SWBConfiguredTargetIdentifier]) async throws -> [SourcesItem] {
+        try await taskReporter.log(title: "Loading build sources") {
             guard let buildDescriptionID = buildDescriptionID else {
                 throw BuildServerError.noWorkspaceInfo
             }
 
             let buildRequest = try await configuredBuildRequest
-            let configuredTargetIdentifiers = try targetIdentifiers.map { try $0.configuredTargetIdentifier }
+//            let configuredTargetIdentifiers = try targetIdentifiers.map { try $0.configuredTargetIdentifier }
 
             let response = try await buildServiceSession.sources(
-                of: configuredTargetIdentifiers,
+                of: targetIdentifiers,
                 buildDescription: buildDescriptionID,
                 buildRequest: buildRequest
             )
@@ -272,9 +275,15 @@ actor SwiftBSP {
         }
     }
 
+    func loadBuildTargetDestinations(
+        targetIdentifier: SWBConfiguredTargetIdentifier
+    ) async throws -> [BuildTargetDestination] {
+        [] // not supported
+    }
+
     // TextDocumentSourceKitOptionsRequest
-    func loadCompilerArguments(file: FilePath, targetIdentifier: BuildTargetIdentifier) async throws -> [String] {
-        try await taskReporter.log(title: "Loading compiler arguments for target \(targetIdentifier): \(file.string)") {
+    func loadCompilerArguments(file: FilePath, targetIdentifier: SWBConfiguredTargetIdentifier) async throws -> [String] {
+        try await taskReporter.log(title: "Loading compiler arguments for '\(file.string)'") {
             guard let buildDescriptionID = buildDescriptionID else {
                 throw BuildServerError.noWorkspaceInfo
             }
@@ -283,7 +292,7 @@ actor SwiftBSP {
 
             return try await buildServiceSession.indexCompilerArguments(
                 of: SwiftBuild.AbsolutePath(validating: file.string),
-                in: targetIdentifier.configuredTargetIdentifier,
+                in: targetIdentifier,
                 buildDescription: buildDescriptionID,
                 buildRequest: buildRequest
             )
@@ -293,14 +302,10 @@ actor SwiftBSP {
     // MARK: - Mutators
 
     // BuildTargetPrepareRequest
-    func prepareTargets(targets: [BuildTargetIdentifier]) async throws {
-        let ids = try targets.map { try $0.configuredTargetIdentifier.targetGUID.rawValue }
-
-        try await taskReporter.log(title: "Preparing targets: \(ids.formatted())") {
+    func prepareTargets(targets: [SWBConfiguredTargetIdentifier]) async throws {
+        try await taskReporter.log(title: "Preparing targets") {
             try await preparationQueue.asyncThrowing {
-                let targetGUIDs = try targets.map {
-                    try $0.configuredTargetIdentifier.targetGUID.rawValue
-                }
+                let targetGUIDs = targets.map { $0.targetGUID.rawValue }
 
                 var buildRequest = try await self.configuredBuildRequest
                 buildRequest.buildCommand = .prepareForIndexing(
@@ -325,7 +330,7 @@ actor SwiftBSP {
 
 // MARK: - SWBPlanningOperationDelegate, SWBIndexingDelegate
 
-extension SwiftBSP: SWBIndexingDelegate {
+extension SwiftBuildAdapter: SWBIndexingDelegate {
     func provisioningTaskInputs(
         targetGUID: String,
         provisioningSourceData: SWBProvisioningTaskInputsSourceData
@@ -342,7 +347,7 @@ extension SwiftBSP: SWBIndexingDelegate {
     }
 }
 
-extension SwiftBSP {
+extension SwiftBuildAdapter {
     private func createBuildRequest() -> SWBBuildRequest {
         var buildRequest = SWBBuildRequest()
         buildRequest.buildCommand = .prepareForIndexing(buildOnlyTheseTargets: nil, enableIndexBuildArena: true)
@@ -433,5 +438,13 @@ extension SwiftBSP {
         }
 
         return buildRequest
+    }
+
+    func compile(
+        targetIdentifier: SWBConfiguredTargetIdentifier,
+        destination: BuildTargetDestinationIdentifier?
+    ) async throws -> BuildTargetCompileResponse {
+        // not supported
+        return BuildTargetCompileResponse(statusCode: .error)
     }
 }

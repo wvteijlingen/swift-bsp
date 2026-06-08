@@ -28,6 +28,7 @@ extension BuildServerConfig {
         let project: String?
         let configuration: String?
         let runDestination: RunDestination?
+        let scratchPath: FilePath?
     }
 
     struct RunDestination: Decodable {

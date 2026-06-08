@@ -43,7 +43,8 @@ brew install wvteijlingen/tap/swift-bsp
   //   },
   //   "configuration": "...",
   //   "project": "...",
-  //   "verboseLogging": true
+  //   "verboseLogging": true,
+  //   "scratchPad": "..."
   // }
 }
 ```
@@ -61,6 +62,8 @@ Valid values are: `macosx|iphonesimulator|iphoneos|appletvsimulator|appletvos|wa
 Only needed when there are multiple Xcode projects or workspaces in the same directory.
 - `verboseLogging`: When set to `true`, a verbose log file will be created in `build/swift-bsp.log`.
 Defaults to `false.`
+- `scratchPad`: Path to a directory for temporary files such as caches and build artifacts. Relative paths are
+intepreted relative to the working directory. Defaults to `build`. 
 
 ## Troubleshooting
 

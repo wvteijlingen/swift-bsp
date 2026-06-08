@@ -14,7 +14,11 @@ struct TaskReporter: Sendable {
     func start(id: String? = nil, title: String) -> TaskId {
         let id = id.map { TaskId(id: String($0)) } ?? TaskId(id: UUID().uuidString)
         let title = "[swift-bsp] \(title)"
-        let notification = TaskStartNotification(taskId: id, data: WorkDoneProgressTask(title: title).encodeToLSPAny())
+        let notification = TaskStartNotification(
+            taskId: id,
+            message: title,
+            data: WorkDoneProgressTask(title: title).encodeToLSPAny()
+        )
 
         connection?.send(notification)
         Log.default.info("Start task \(id.id, privacy: .public): \(title, privacy: .public)")
