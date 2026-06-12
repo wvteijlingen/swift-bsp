@@ -1,13 +1,13 @@
 {
-  "originHash" : "6d12a5c8049d6a402f11ee30ce004e69e2559636911ac3b9ea0e87ffba2cd084",
+  "originHash" : "82aaedb03ffc4e685a56c7ad8f6b54eba89b4dc5b88bad05927485747baa902d",
   "pins" : [
     {
       "identity" : "swift-argument-parser",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-argument-parser.git",
       "state" : {
-        "revision" : "cdd0ef3755280949551dc26dee5de9ddeda89f54",
-        "version" : "1.6.2"
+        "revision" : "626b5b7b2f45e1b0b1c6f4a309296d1d21d7311b",
+        "version" : "1.7.1"
       }
     },
     {
@@ -15,7 +15,7 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/swiftlang/swift-build.git",
       "state" : {
-        "revision" : "d3acea2a54048e173bc42148c587e81f73c3ab78"
+        "revision" : "fc3609a1658bc5e119dc38906eb8049a9e8b24a1"
       }
     },
     {
@@ -23,8 +23,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/swiftlang/swift-driver.git",
       "state" : {
-        "branch" : "main",
-        "revision" : "0764248a9d96c19389b040187c1e853a0cc54d0d"
+        "branch" : "release/6.3",
+        "revision" : "7d6b844f0c2497a997770a11536598b187066be9"
       }
     },
     {
@@ -32,7 +32,7 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/swiftlang/swift-llbuild.git",
       "state" : {
-        "branch" : "main",
+        "branch" : "release/6.3",
         "revision" : "e38525ae3519021f014ad91e7bf86e7ae86044f5"
       }
     },
@@ -68,8 +68,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/swiftlang/swift-tools-support-core.git",
       "state" : {
-        "branch" : "main",
-        "revision" : "84d81b7afa0e12e83bf0504fefa2bcff7367b2fe"
+        "branch" : "release/6.3",
+        "revision" : "44be92e627f754f593ca99f1b0c982e389e9bb20"
       }
     }
   ],
