@@ -188,14 +188,14 @@ actor SwiftBSP {
 
             let buildRequest = try await configuredBuildRequest
 
-            let targets: [SWBConfiguredTargetInfo] = try await buildServiceSession.configuredTargets(
+            let targetInfos: [SWBConfiguredTargetInfo] = try await buildServiceSession.configuredTargets(
                 buildDescription: buildDescriptionID,
                 buildRequest: buildRequest
             )
 
-            let buildTargets = try await targets.asyncMap { @Sendable targetInfo in
+            let buildTargets = try await targetInfos.asyncMap { @Sendable targetInfo in
                 try await taskReporter.log(
-                    title: "Loading target: \(targetInfo.name) (\(targetInfo.identifier.targetGUID.rawValue))"
+                    title: "Loading target: \(targetInfo.name)"
                 ) {
                     let tags = try await buildServiceSession.evaluateMacroAsStringList(
                         "BUILD_SERVER_PROTOCOL_TARGET_TAGS",
@@ -213,7 +213,10 @@ actor SwiftBSP {
                     }
 
                     let target = BuildTarget(
-                        id: try BuildTargetIdentifier(configuredTargetIdentifier: targetInfo.identifier),
+                        id: try BuildTargetIdentifier(
+                            configuredTargetIdentifier: targetInfo.identifier,
+                            name: targetInfo.name
+                        ),
                         displayName: "\(targetInfo.name) (\(targetInfo.identifier.sdkVariant, default: "unknown SDK"))",
                         baseDirectory: nil,
                         tags: tags,
@@ -234,7 +237,9 @@ actor SwiftBSP {
 
     // BuildTargetSourcesRequest
     func loadBuildSources(targetIdentifiers: [BuildTargetIdentifier]) async throws -> [SourcesItem] {
-        try await taskReporter.log(title: "Loading build sources for targets \(targetIdentifiers.map(\.uri))") {
+        let targetNames = try targetIdentifiers.compactMap { try $0.targetName }.joined(separator: ", ")
+
+        return try await taskReporter.log(title: "Loading sources for '\(targetNames)'") {
             guard let buildDescriptionID = buildDescriptionID else {
                 throw BuildServerError.noWorkspaceInfo
             }
@@ -250,7 +255,7 @@ actor SwiftBSP {
 
             return try response.map { swbSourcesItem -> SourcesItem in
                 let sources = swbSourcesItem.sourceFiles.map { sourceFile in
-                    //                    taskReporter.log(title: "Loading build source: \(sourceFile.path.pathString)") {
+                    // taskReporter.log(title: "Loading build source: \(sourceFile.path.pathString)") {
                     SourceItem(
                         uri: DocumentURI(URL(filePath: sourceFile.path.pathString)),
                         kind: .file,
@@ -261,11 +266,18 @@ actor SwiftBSP {
                             outputPath: sourceFile.indexOutputPath
                         ).encodeToLSPAny()
                     )
-                    //                    }
+                    // }
                 }
 
+                let targetName = try targetIdentifiers.first {
+                    try $0.configuredTargetIdentifier == swbSourcesItem.configuredTarget
+                }?.targetName
+
                 return SourcesItem(
-                    target: try BuildTargetIdentifier(configuredTargetIdentifier: swbSourcesItem.configuredTarget),
+                    target: try BuildTargetIdentifier(
+                        configuredTargetIdentifier: swbSourcesItem.configuredTarget,
+                        name: targetName
+                    ),
                     sources: sources
                 )
             }
@@ -274,7 +286,7 @@ actor SwiftBSP {
 
     // TextDocumentSourceKitOptionsRequest
     func loadCompilerArguments(file: FilePath, targetIdentifier: BuildTargetIdentifier) async throws -> [String] {
-        try await taskReporter.log(title: "Loading compiler arguments for target \(targetIdentifier): \(file.string)") {
+        try await taskReporter.log(title: "Loading compiler arguments for '\(file.string)'") {
             guard let buildDescriptionID = buildDescriptionID else {
                 throw BuildServerError.noWorkspaceInfo
             }
@@ -293,12 +305,12 @@ actor SwiftBSP {
     // MARK: - Mutators
 
     // BuildTargetPrepareRequest
-    func prepareTargets(targets: [BuildTargetIdentifier]) async throws {
-        let ids = try targets.map { try $0.configuredTargetIdentifier.targetGUID.rawValue }
+    func prepareTargets(targetIdentifiers: [BuildTargetIdentifier]) async throws {
+        let targetNames = try targetIdentifiers.compactMap { try $0.targetName }.joined(separator: ", ")
 
-        try await taskReporter.log(title: "Preparing targets: \(ids.formatted())") {
+        try await taskReporter.log(title: "Preparing targets '\(targetNames)'") {
             try await preparationQueue.asyncThrowing {
-                let targetGUIDs = try targets.map {
+                let targetGUIDs = try targetIdentifiers.map {
                     try $0.configuredTargetIdentifier.targetGUID.rawValue
                 }
 

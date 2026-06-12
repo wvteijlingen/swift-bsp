@@ -6,7 +6,7 @@ import SwiftBuild
 extension BuildTargetIdentifier {
     private static let scheme = "swift-bsp"
 
-    init(configuredTargetIdentifier: SWBConfiguredTargetIdentifier) throws {
+    init(configuredTargetIdentifier: SWBConfiguredTargetIdentifier, name: String?) throws {
         var components = URLComponents()
         components.scheme = Self.scheme
         components.host = "configured-target"
@@ -24,6 +24,15 @@ extension BuildTargetIdentifier {
                 )
             ),
         ]
+
+        if let name {
+            components.queryItems?.append(
+                URLQueryItem(
+                    name: "name",
+                    value: name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)
+                )
+            )
+        }
 
         guard let url = components.url else {
             throw BuildServerError.cannotCreateBuildTargetIdentifier(from: configuredTargetIdentifier)
@@ -44,28 +53,20 @@ extension BuildTargetIdentifier {
         }
     }
 
+    var targetName: String? {
+        get throws {
+            try value(for: "name", in: components)
+        }
+    }
+
     var configuredTargetIdentifier: SWBConfiguredTargetIdentifier {
         get throws {
-            guard let components = URLComponents(url: uri.arbitrarySchemeURL, resolvingAgainstBaseURL: false) else {
-                throw BuildServerError.invalidTargetIdentifier(uri.arbitrarySchemeURL)
-            }
+            let components = try self.components
+            let targetGUID = value(for: "targetGUID", in: components)
+            let configuredTargetGUID = value(for: "configuredTargetGUID", in: components)
 
-            guard components.scheme == Self.scheme, components.host == "configured-target" else {
-                throw BuildServerError.invalidTargetIdentifier(uri.arbitrarySchemeURL)
-            }
-
-            let targetGUID = components.queryItems?
-                .last { $0.name == "targetGUID" }?
-                .value?
-                .removingPercentEncoding
-
-            let configuredTargetGUID = components.queryItems?
-                .last { $0.name == "configuredTargetGUID" }?
-                .value?
-                .removingPercentEncoding
-
-            guard let configuredTargetGUID, let targetGUID else {
-                throw BuildServerError.invalidTargetIdentifier(uri.arbitrarySchemeURL)
+            guard let targetGUID, let configuredTargetGUID else {
+                throw BuildServerError.invalidTargetIdentifier(components.url?.absoluteString ?? "<")
             }
 
             return SWBConfiguredTargetIdentifier(
@@ -74,4 +75,27 @@ extension BuildTargetIdentifier {
             )
         }
     }
+
+    private var components: URLComponents {
+        get throws {
+            guard let components = URLComponents(url: uri.arbitrarySchemeURL, resolvingAgainstBaseURL: false) else {
+                throw BuildServerError.invalidTargetIdentifier(uri.stringValue)
+            }
+
+            guard components.scheme == Self.scheme, components.host == "configured-target" else {
+                throw BuildServerError.invalidTargetIdentifier(uri.stringValue)
+            }
+
+            return components
+        }
+    }
+}
+
+private func value(for queryItemName: String, in components: URLComponents) -> String? {
+    let value = components.queryItems?
+        .last { $0.name == queryItemName }?
+        .value?
+        .removingPercentEncoding
+
+    return value
 }

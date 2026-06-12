@@ -11,7 +11,7 @@ enum BuildServerError: Error, LocalizedError {
     case noWorkspaceInfo
     case invalidFileURI(URI)
     case cannotCreateBuildTargetIdentifier(from: SWBConfiguredTargetIdentifier)
-    case invalidTargetIdentifier(URL)
+    case invalidTargetIdentifier(String)
     case invalidConfig(Error)
 
     var errorDescription: String? {
