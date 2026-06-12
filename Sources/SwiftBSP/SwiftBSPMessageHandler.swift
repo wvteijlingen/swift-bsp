@@ -261,7 +261,7 @@ extension SwiftBSPMessageHandler {
                 filePath == containerPath.string ||
                 filePath == containerDirectoryPath.appending("buildServer.json").string
             {
-                Log.default.info("Reloading because file \(change.type.rawValue, privacy: .public): \(filePath, privacy: .public)")
+                Log.default.info("Reloading. Reason: \(change.type.rawValue, privacy: .public), \(filePath, privacy: .public)")
                 return true
             }
             
