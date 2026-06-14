@@ -19,4 +19,4 @@ jobs:
         swift-version: "6.2"
     - uses: actions/checkout@v4
     - name: Build
-      run: swift build -v
+      run: swift build
