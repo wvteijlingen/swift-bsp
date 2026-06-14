@@ -172,16 +172,6 @@ extension SwiftBSPMessageHandler {
             throw BuildServerError.projectAlreadyInitialized
         }
 
-        guard let rootPath = request.rootUri.fileURL?.path(percentEncoded: false) else {
-            throw ResponseError.invalidParams("InitializeBuildRequest received with invalid rootUri")
-        }
-
-        guard rootPath == containerDirectoryPath.string else {
-            throw ResponseError.invalidParams(
-                "Expected rootUri to be '\(containerDirectoryPath)', actually is '\(rootPath)'"
-            )
-        }
-
         state = .waitingForInitializedNotification
         return await bsp.initialize()
     }
