@@ -1,10 +1,19 @@
 # Swift Build Server
 
-Swift BSP is a *Build Server Protocol* implementation that serves as a bridge between sourcekit-lsp (Swift's official
-Language Server Protocol) and your Xcode project.
+A Build Server Protocol (BSP) implementation for Swift that uses Swift’s native build system (swift-build).
+It enables modern editors like VS Code, Cursor, Zed, and others to work with Xcode projects with proper language features
+like navigation, diagnostics, and completion.
 
-With Swift BSP you can **develop for Apple platforms like iOS in any IDE that has support for LSPs**, such as Cursor
-and VSCode.
+With Swift BSP you can **develop for Apple platforms any IDE that has support for LSPs**.
+
+## What you get
+
+With a compatible LSP capable editor such as Visual Studio Code or Zed, swift-bsp will give you:
+- Go to definition
+- Find references
+- Code completion
+- Project-wide navigation
+- All using Swift’s native build system
 
 ## Installation
 
@@ -12,7 +21,7 @@ and VSCode.
 brew install wvteijlingen/tap/swift-bsp
 ```
 
-## Usage
+## Setup
 
 ### VS Code / Cursor
 
@@ -21,6 +30,15 @@ brew install wvteijlingen/tap/swift-bsp
 1. Copy the snippet below. If needed, change the `argv` and `swiftBSP` fields.
 1. Restart the Swift language server (`Cmd+Shift+P -> Swift: Restart LSP Server`) or reload the entire window
 (`Cmd+Shift+P -> Reload Window`).
+
+### Zed
+
+1. Open your project's folder in Zed.
+1. Install the Swift extension. If you open a Swift file, Zed will offer to install it.
+1. Create a `buildServer.json` file in the root of your project.
+1. Restart Zed.
+
+### buildServer.json
 
 > [!IMPORTANT]
 > The value for `argv` must point to the `swift-bsp` binary on your system. When installed with a default Homebrew
@@ -78,3 +96,9 @@ The default value is `Debug`, but the Xcode project might use custom configurati
 - The `runDestination` field in `buildServer.json` is not set to a valid run destination.
 When not set, Swift BSP tries to determine a valid run destination, but this heuristic may fail
 or result in a destination that is not appropriate for the Xcode project.
+
+## Comparison with xcode-build-server
+
+xcode-build-server is a widely used way to enable Swift support in external editors. It works by parsing the build log from Xcode and inferring build configuration from that.
+
+Swift BSP takes a different approach: it uses Swift’s native build system (swift-build) directly as the source of truth for build information. This means the actual build system is the exact same as what Xcode uses behind the scenes.
