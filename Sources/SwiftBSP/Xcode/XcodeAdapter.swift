@@ -1,27 +1,32 @@
 import BuildServerProtocol
 import Foundation
 import LanguageServerProtocol
+import Subprocess
 import SwiftBuild
 import System
 import ToolsProtocolsSwiftExtensions
 import XcodeProj
-import Subprocess
 
 actor XcodeAdapter {
     private let containerPath: FilePath
     private let xcodeProj: XcodeProj
     private var taskReporter: TaskReporter
+    private var diagnosticsReporter: DiagnosticsReporter
 
     init(containerPath: FilePath) throws {
         self.containerPath = containerPath
         self.xcodeProj = try XcodeProj(pathString: containerPath.string)
         self.taskReporter = TaskReporter(connection: nil)
+        self.diagnosticsReporter = DiagnosticsReporter(connection: nil)
     }
 
     func setTaskReporter(_ taskReporter: TaskReporter) {
         self.taskReporter = taskReporter
     }
 
+    func setDiagnosticsReporter(_ diagnosticsReporter: DiagnosticsReporter) {
+        self.diagnosticsReporter = diagnosticsReporter
+    }
 
     func initialize() -> LSPAny? {
         return nil
@@ -112,7 +117,6 @@ actor XcodeAdapter {
     func run(targetIdentifier: XcodeTargetIdentifier, destination: BuildTargetDestinationIdentifier) async throws {
         let appPath = try await build(targetIdentifier: targetIdentifier, destination: destination)
 
-        
         try await Simulator.open(udid: destination.id)
         try await Simulator.install(appPath: appPath, deviceUdid: destination.id)
     }
@@ -134,11 +138,12 @@ actor XcodeAdapter {
 
             let scheme = xcodeProj.allSchemes.first { $0.name == targetIdentifier.schemeName }!
 
-            let destinationID = if let destination {
-                destination.id
-            } else {
-                try await loadBuildTargetDestinations(targetIdentifier: targetIdentifier).first!.id.id
-            }
+            let destinationID =
+                if let destination {
+                    destination.id
+                } else {
+                    try await loadBuildTargetDestinations(targetIdentifier: targetIdentifier).first!.id.id
+                }
 
             _ = try await Subprocess.run(
                 .path(osaPath),
@@ -147,9 +152,7 @@ actor XcodeAdapter {
                 output: .sequence,
                 error: .sequence
             ) { execution in
-                for try await line in execution.standardOutput.strings() {
-                    print(line)
-                }
+                try await handleOutputStream(execution.standardOutput, scheme: scheme)
             }
 
             return try await getBuildPath(schemeName: targetIdentifier.schemeName, destinationID: destinationID)
@@ -164,6 +167,7 @@ actor XcodeAdapter {
             .name("xcodebuild"),
             ["-showBuildSettings", "-json", "-scheme", schemeName, "-destination", "id=\(destinationID)"]
         )
+
         let data = result.data(using: .utf8)!
         let settings = try JSONDecoder().decode([BuildTargetSettings].self, from: data)
 
@@ -171,14 +175,37 @@ actor XcodeAdapter {
             throw BuildServerError.generic("No build settings found for '\(schemeName)'")
         }
 
-        guard let builtProductsDir = target.buildSettings["BUILT_PRODUCTS_DIR"], // /Users/.../Products/Debug-iphoneos
-              // let fullProductName = target.buildSettings["FULL_PRODUCT_NAME"], // Product.app
-              let executablePath = target.buildSettings["EXECUTABLE_PATH"] // Product.app/Product
+        guard let builtProductsDir = target.buildSettings["BUILT_PRODUCTS_DIR"],  // /Users/.../Products/Debug-iphoneos
+            // let fullProductName = target.buildSettings["FULL_PRODUCT_NAME"], // Product.app
+            let executablePath = target.buildSettings["EXECUTABLE_PATH"]  // Product.app/Product
         else {
             throw BuildServerError.generic("Could not extract build path for '\(schemeName)'")
         }
 
         return FilePath(builtProductsDir).appending(executablePath)
+    }
+
+    private func handleOutputStream(_ stream: SubprocessOutputSequence, scheme: XCScheme) async throws {
+        let outputHandler = XcodeOutputHandler()
+        var didReset: Set<FilePath> = []
+
+        for try await line in stream.strings() {
+            let output = outputHandler.handle(line: line)
+
+            switch output {
+            case .diagnostic(let file, let diagnostic):
+                diagnosticsReporter.report(
+                    [diagnostic],
+                    textDocument: TextDocumentIdentifier(file.fileURI),
+                    buildTarget: try BuildTargetIdentifier(xcodeScheme: scheme),
+                    reset: !didReset.contains(file)
+                )
+
+                didReset.insert(file)
+            case .output:
+                break  // TODO
+            }
+        }
     }
 }
 

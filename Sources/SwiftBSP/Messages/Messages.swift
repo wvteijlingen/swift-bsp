@@ -32,7 +32,7 @@ private let extendedRequestTypes: [_RequestType.Type] = [
 ]
 
 private let extendedNotificationTypes: [NotificationType.Type] = [
-    //
+    PublishDiagnosticsNotification.self
 ]
 
 extension MessageRegistry {

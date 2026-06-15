@@ -68,8 +68,10 @@ final actor Server: QueueBasedMessageHandler {
         )
 
         taskReporter = TaskReporter(connection: connection)
+
         await swiftBuildAdapter.setTaskReporter(TaskReporter(connection: connection))
         await xcodeAdapter.setTaskReporter(TaskReporter(connection: connection))
+        await xcodeAdapter.setDiagnosticsReporter(DiagnosticsReporter(connection: connection))
     }
 
     func handle(notification: some NotificationType) {
@@ -185,7 +187,15 @@ final actor Server: QueueBasedMessageHandler {
     }
 }
 
-// MARK: - Request Handlers
+// MARK: - Helpers
+
+extension Server {
+    private func assertRunning() throws {
+        guard state == .running else { throw BuildServerError.projectNotInitialized }
+    }
+}
+
+// MARK: - Default Requests
 
 extension Server {
     private func handle(request: InitializeBuildRequest) async throws -> InitializeBuildResponse {
@@ -237,7 +247,7 @@ extension Server {
     }
 
     private func handleBuildShutdown(request: BuildShutdownRequest) async throws -> VoidResponse {
-        guard state == .running else { throw BuildServerError.projectNotInitialized }
+        try assertRunning()
 
         try await swiftBuildAdapter.closeSession()
 
@@ -248,7 +258,7 @@ extension Server {
     private func handleBuildTargetSources(
         request: BuildTargetSourcesRequest
     ) async throws -> BuildTargetSourcesResponse {
-        guard state == .running else { throw BuildServerError.projectNotInitialized }
+        try assertRunning()
 
         let swiftBuildTargets = try request.targets.compactMap { targetIdentifier in
             try targetIdentifier.swiftBuildTarget
@@ -262,7 +272,7 @@ extension Server {
     private func handleWorkspaceBuildTargets(
         request: WorkspaceBuildTargetsRequest
     ) async throws -> WorkspaceBuildTargetsResponse {
-        guard state == .running else { throw BuildServerError.projectNotInitialized }
+        try assertRunning()
 
 //        let swiftBuildTargets = try await swiftBuildAdapter.loadBuildTargets()
         let xcodeTargets = try await xcodeAdapter.loadBuildTargets()
@@ -270,42 +280,10 @@ extension Server {
         return WorkspaceBuildTargetsResponse(targets: xcodeTargets)
     }
 
-    private func handleBuildTargetPrepare(request: BuildTargetPrepareRequest) async throws -> VoidResponse {
-        guard state == .running else { throw BuildServerError.projectNotInitialized }
-
-        let swiftBuildTargets = try request.targets.compactMap { targetIdentifier in
-            try targetIdentifier.swiftBuildTarget
-        }
-
-        try await swiftBuildAdapter.prepareTargets(targets: swiftBuildTargets)
-
-        return VoidResponse()
-    }
-
-    private func handleTextDocumentSourceKitOptions(
-        request: TextDocumentSourceKitOptionsRequest
-    ) async throws -> TextDocumentSourceKitOptionsResponse {
-        guard state == .running else { throw BuildServerError.projectNotInitialized }
-
-        guard let fileURL = request.textDocument.uri.fileURL else {
-            throw BuildServerError.invalidFileURI(request.textDocument.uri)
-        }
-
-        let filePath = FilePath(fileURL.path(percentEncoded: false))
-
-        guard let target = try request.target.swiftBuildTarget else {
-            throw BuildServerError.generic("Sourcekit options not available for target: \(request.target.uri)")
-        }
-
-        let arguments = try await swiftBuildAdapter.loadCompilerArguments(file: filePath, targetIdentifier: target)
-
-        return TextDocumentSourceKitOptionsResponse(compilerArguments: arguments)
-    }
-
     private func handleWorkspaceWaitForBuildSystemUpdates(
         request: WorkspaceWaitForBuildSystemUpdatesRequest
     ) async throws -> VoidResponse {
-        guard state == .running else { throw BuildServerError.projectNotInitialized }
+        try assertRunning()
 
         await swiftBuildAdapter.waitForUpdates()
 
@@ -313,11 +291,11 @@ extension Server {
     }
 }
 
-// MARK: - Notification Handlers
+// MARK: - Default Notifications
 
 extension Server {
     func handleOnWatchedFilesDidChange(notification: OnWatchedFilesDidChangeNotification) async throws {
-        guard state == .running else { throw BuildServerError.projectNotInitialized }
+        try assertRunning()
 
         let needsReload = notification.changes.contains { change in
             guard let filePath = change.uri.fileURL?.path(percentEncoded: false) else { return false }
@@ -335,13 +313,49 @@ extension Server {
     }
 }
 
-// MARK: - Extended Request Handlers
+// MARK: - Sourcekit Extension
+
+extension Server {
+    private func handleBuildTargetPrepare(request: BuildTargetPrepareRequest) async throws -> VoidResponse {
+        try assertRunning()
+
+        let swiftBuildTargets = try request.targets.compactMap { targetIdentifier in
+            try targetIdentifier.swiftBuildTarget
+        }
+
+        try await swiftBuildAdapter.prepareTargets(targets: swiftBuildTargets)
+
+        return VoidResponse()
+    }
+
+    private func handleTextDocumentSourceKitOptions(
+        request: TextDocumentSourceKitOptionsRequest
+    ) async throws -> TextDocumentSourceKitOptionsResponse {
+        try assertRunning()
+
+        guard let fileURL = request.textDocument.uri.fileURL else {
+            throw BuildServerError.invalidFileURI(request.textDocument.uri)
+        }
+
+        let filePath = FilePath(fileURL.path(percentEncoded: false))
+
+        guard let target = try request.target.swiftBuildTarget else {
+            throw BuildServerError.generic("Sourcekit options not available for target: \(request.target.uri)")
+        }
+
+        let arguments = try await swiftBuildAdapter.loadCompilerArguments(file: filePath, targetIdentifier: target)
+
+        return TextDocumentSourceKitOptionsResponse(compilerArguments: arguments)
+    }
+}
+
+// MARK: - Extension Requests
 
 extension Server {
     func handleBuildTargetDestinations(
         request: BuildTargetDestinationsRequest
     ) async throws -> BuildTargetDestinationsRequest.Response {
-        guard state == .running else { throw BuildServerError.projectNotInitialized }
+        try assertRunning()
 
         guard let target = try request.target.xcodeTarget else {
             throw BuildServerError.generic("Build target destinations not available for target: \(request.target.uri)")
@@ -355,7 +369,7 @@ extension Server {
     func handleBuildTargetCompile(
         request: BuildTargetCompileRequest
     ) async throws -> BuildTargetCompileRequest.Response {
-        guard state == .running else { throw BuildServerError.projectNotInitialized }
+        try assertRunning()
 
         let xcodeTargets = try request.targets.compactMap { targetIdentifier in
             try targetIdentifier.xcodeTarget
