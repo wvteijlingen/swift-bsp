@@ -206,7 +206,7 @@ extension SwiftBSPMessageHandler {
     private func handleBuildTargetPrepare(request: BuildTargetPrepareRequest) async throws -> VoidResponse {
         guard state == .running else { throw BuildServerError.projectNotInitialized }
 
-        try await bsp.prepareTargets(targets: request.targets)
+        try await bsp.prepareTargets(targetIdentifiers: request.targets)
 
         return VoidResponse()
     }
@@ -246,10 +246,16 @@ extension SwiftBSPMessageHandler {
         let needsReload = notification.changes.contains { change in
             guard let filePath = change.uri.fileURL?.path(percentEncoded: false) else { return false }
 
-            return change.type == .created ||
+            if change.type == .created ||
                 change.type == .deleted ||
                 filePath == containerPath.string ||
                 filePath == containerDirectoryPath.appending("buildServer.json").string
+            {
+                Log.default.info("Reloading. Reason: \(change.type.rawValue, privacy: .public), \(filePath, privacy: .public)")
+                return true
+            }
+            
+            return false
         }
 
         if needsReload {
