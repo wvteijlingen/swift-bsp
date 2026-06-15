@@ -7,7 +7,7 @@ import ToolsProtocolsSwiftExtensions
 import XcodeProj
 import Subprocess
 
-actor XcodeAdapter: Adapter {
+actor XcodeAdapter {
     private let containerPath: FilePath
     private let xcodeProj: XcodeProj
     private var taskReporter: TaskReporter
@@ -22,32 +22,9 @@ actor XcodeAdapter: Adapter {
         self.taskReporter = taskReporter
     }
 
-    func waitForUpdates() async {
-        // no-op, not supported by the Xcode Adapter
-    }
-
-    func loadProject() async throws {
-        // no-op, not supported by the Xcode Adapter
-    }
 
     func initialize() -> LSPAny? {
         return nil
-    }
-
-    func closeSession() async throws {
-        // no-op, not supported by the Xcode Adapter
-    }
-
-    func loadBuildSources(targetIdentifiers: [XcodeTargetIdentifier]) async throws -> [SourcesItem] {
-        []// no-op, not supported by the Xcode Adapter
-    }
-
-    func loadCompilerArguments(file: FilePath, targetIdentifier: XcodeTargetIdentifier) async throws -> [String] {
-        []// no-op, not supported by the Xcode Adapter
-    }
-
-    func prepareTargets(targets: [XcodeTargetIdentifier]) async throws {
-        // no-op, not supported by the Xcode Adapter
     }
 
     func loadBuildTargets() async throws -> [BuildTarget] {

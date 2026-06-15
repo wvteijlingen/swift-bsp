@@ -5,28 +5,7 @@ import SwiftBuild
 import System
 import ToolsProtocolsSwiftExtensions
 
-protocol Adapter<TargetIdentifier>: Actor {
-    associatedtype TargetIdentifier
-
-    func initialize() -> LSPAny?
-    func closeSession() async throws
-    func loadBuildTargets() async throws -> [BuildTarget]
-    func loadBuildSources(targetIdentifiers: [TargetIdentifier]) async throws -> [SourcesItem]
-    func loadBuildTargetDestinations(targetIdentifier: TargetIdentifier) async throws -> [BuildTargetDestination]
-    func loadCompilerArguments(file: FilePath, targetIdentifier: TargetIdentifier) async throws -> [String]
-    func prepareTargets(targets: [TargetIdentifier]) async throws
-
-    func compile(
-        targetIdentifier: TargetIdentifier,
-        destination: BuildTargetDestinationIdentifier?
-    ) async throws -> BuildTargetCompileResponse
-
-    func setTaskReporter(_ taskReporter: TaskReporter)
-    func waitForUpdates() async
-    func loadProject() async throws
-}
-
-actor SwiftBuildAdapter: Adapter {
+actor SwiftBuildAdapter {
     var taskReporter: TaskReporter
 
     private let containerPath: FilePath
@@ -275,12 +254,6 @@ actor SwiftBuildAdapter: Adapter {
         }
     }
 
-    func loadBuildTargetDestinations(
-        targetIdentifier: SWBConfiguredTargetIdentifier
-    ) async throws -> [BuildTargetDestination] {
-        [] // not supported
-    }
-
     // TextDocumentSourceKitOptionsRequest
     func loadCompilerArguments(file: FilePath, targetIdentifier: SWBConfiguredTargetIdentifier) async throws -> [String] {
         try await taskReporter.log(title: "Loading compiler arguments for '\(file.string)'") {
@@ -438,13 +411,5 @@ extension SwiftBuildAdapter {
         }
 
         return buildRequest
-    }
-
-    func compile(
-        targetIdentifier: SWBConfiguredTargetIdentifier,
-        destination: BuildTargetDestinationIdentifier?
-    ) async throws -> BuildTargetCompileResponse {
-        // not supported
-        return BuildTargetCompileResponse(statusCode: .error)
     }
 }

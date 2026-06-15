@@ -27,8 +27,8 @@ final actor Server: QueueBasedMessageHandler {
     private let connection: JSONRPCConnection
     private var taskReporter = TaskReporter(connection: nil)
 
-    private var swiftBuildAdapter: any Adapter<SwiftBuildAdapter.TargetIdentifier>
-    private var xcodeAdapter: any Adapter<XcodeAdapter.TargetIdentifier>
+    private var swiftBuildAdapter: SwiftBuildAdapter
+    private var xcodeAdapter: XcodeAdapter
 
     init(
         containerPath: FilePath,
@@ -240,7 +240,6 @@ extension Server {
         guard state == .running else { throw BuildServerError.projectNotInitialized }
 
         try await swiftBuildAdapter.closeSession()
-        try await xcodeAdapter.closeSession()
 
         state = .shutdown
         return VoidResponse()
@@ -255,14 +254,9 @@ extension Server {
             try targetIdentifier.swiftBuildTarget
         }
 
-        let xcodeTargets = try request.targets.compactMap { targetIdentifier in
-            try targetIdentifier.xcodeTarget
-        }
+        let sources = try await swiftBuildAdapter.loadBuildSources(targetIdentifiers: swiftBuildTargets)
 
-        let swiftBuildItems = try await swiftBuildAdapter.loadBuildSources(targetIdentifiers: swiftBuildTargets)
-        let xcodeItems = try await xcodeAdapter.loadBuildSources(targetIdentifiers: xcodeTargets)
-
-        return BuildTargetSourcesResponse(items: swiftBuildItems + xcodeItems)
+        return BuildTargetSourcesResponse(items: sources)
     }
 
     private func handleWorkspaceBuildTargets(
@@ -283,12 +277,7 @@ extension Server {
             try targetIdentifier.swiftBuildTarget
         }
 
-        let xcodeTargets = try request.targets.compactMap { targetIdentifier in
-            try targetIdentifier.xcodeTarget
-        }
-
         try await swiftBuildAdapter.prepareTargets(targets: swiftBuildTargets)
-        try await xcodeAdapter.prepareTargets(targets: xcodeTargets)
 
         return VoidResponse()
     }
@@ -304,13 +293,11 @@ extension Server {
 
         let filePath = FilePath(fileURL.path(percentEncoded: false))
 
-        let arguments = if let target = try request.target.swiftBuildTarget {
-            try await swiftBuildAdapter.loadCompilerArguments(file: filePath, targetIdentifier: target)
-        } else if let target = try request.target.xcodeTarget {
-            try await xcodeAdapter.loadCompilerArguments(file: filePath, targetIdentifier: target)
-        } else {
-            throw BuildServerError.invalidTargetIdentifier(request.target.uri.arbitrarySchemeURL)
+        guard let target = try request.target.swiftBuildTarget else {
+            throw BuildServerError.generic("Sourcekit options not available for target: \(request.target.uri)")
         }
+
+        let arguments = try await swiftBuildAdapter.loadCompilerArguments(file: filePath, targetIdentifier: target)
 
         return TextDocumentSourceKitOptionsResponse(compilerArguments: arguments)
     }
@@ -321,7 +308,6 @@ extension Server {
         guard state == .running else { throw BuildServerError.projectNotInitialized }
 
         await swiftBuildAdapter.waitForUpdates()
-        await xcodeAdapter.waitForUpdates()
 
         return VoidResponse()
     }
@@ -344,7 +330,6 @@ extension Server {
 
         if needsReload {
             try await swiftBuildAdapter.loadProject()
-            try await xcodeAdapter.loadProject()
             connection.send(OnBuildTargetDidChangeNotification(changes: nil))
         }
     }
@@ -358,13 +343,11 @@ extension Server {
     ) async throws -> BuildTargetDestinationsRequest.Response {
         guard state == .running else { throw BuildServerError.projectNotInitialized }
 
-        let destinations = if let target = try request.target.swiftBuildTarget {
-            try await swiftBuildAdapter.loadBuildTargetDestinations(targetIdentifier: target)
-        } else if let target = try request.target.xcodeTarget {
-            try await xcodeAdapter.loadBuildTargetDestinations(targetIdentifier: target)
-        } else {
-            throw BuildServerError.invalidTargetIdentifier(request.target.uri.arbitrarySchemeURL)
+        guard let target = try request.target.xcodeTarget else {
+            throw BuildServerError.generic("Build target destinations not available for target: \(request.target.uri)")
         }
+
+        let destinations = try await xcodeAdapter.loadBuildTargetDestinations(targetIdentifier: target)
 
         return BuildTargetDestinationsResponse(destinations: destinations)
     }
