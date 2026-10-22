@@ -71,6 +71,9 @@ final actor SwiftBSPMessageHandler: QueueBasedMessageHandler {
             case _ as OnBuildExitNotification:
                 onExit(state == .shutdown ? 0 : 1)
             case _ as OnBuildInitializedNotification:
+                Task {
+                    try? await bsp.loadProject()
+                }
                 state = .running
             case let notification as OnWatchedFilesDidChangeNotification:
                 try await handleOnWatchedFilesDidChange(notification: notification)

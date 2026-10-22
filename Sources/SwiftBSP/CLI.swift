@@ -36,7 +36,8 @@ struct CLI: AsyncParsableCommand {
 
         if !FileManager.default.fileExists(atPath: config.scratchPath.string) {
             try FileManager.default.createDirectory(
-                atPath: config.scratchPath.string, withIntermediateDirectories: true)
+                atPath: config.scratchPath.string, withIntermediateDirectories: true
+            )
         }
 
         Log.default.info(

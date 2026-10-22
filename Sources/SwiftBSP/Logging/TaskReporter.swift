@@ -14,14 +14,13 @@ public struct TaskReporter: Sendable {
     nonisolated(nonsending) public func log<T>(
         message: String,
         parent: TaskId? = nil,
-        data: LSPAnyCodable? = nil,
         operation: (TaskId) async throws -> T
     ) async rethrows -> T {
         let uuid = UUID().uuidString
         let parents = parent.map { [$0.id] }
         let id = TaskId(id: uuid, parents: parents)
 
-        sendStart(taskId: id, message: message, data: data)
+        sendStart(taskId: id, message: message)
 
         do {
             let operationResult = try await operation(id)
@@ -39,14 +38,13 @@ public struct TaskReporter: Sendable {
     public func log<T>(
         message: String,
         parent: TaskId? = nil,
-        data: LSPAnyCodable? = nil,
         operation: (TaskId) throws -> T
     ) rethrows -> T {
         let uuid = UUID().uuidString
         let parents = parent.map { [$0.id] }
         let id = TaskId(id: uuid, parents: parents)
 
-        sendStart(taskId: id, message: message, data: data)
+        sendStart(taskId: id, message: message)
 
         do {
             let operationResult = try operation(id)
@@ -61,44 +59,13 @@ public struct TaskReporter: Sendable {
         }
     }
 
-    private func sendStart(
-        taskId: TaskId,
-        message: String,
-        data: LSPAnyCodable? = nil
-    ) {
-        let dataKind: TaskStartDataKind? =
-            switch data {
-            case is CompileTaskData: .compileTask
-            case is TestStartData: .testTask
-            case is TestTaskData: .testStart
-            default: nil
-            }
-
-        let notificationData: LSPAny = {
-            guard let lspData = data?.encodeToLSPAny() else {
-                // There is no data, include default data with a `workDoneProgressTitle`` for SourceKit-LSP
-                return .dictionary(["workDoneProgressTitle": .string(message)])
-            }
-
-            guard case .dictionary(let dictionary) = lspData, dictionary["workDoneProgressTitle"] == nil else {
-                // Data is not a dictionary or already contains a `workDoneProgressTitle`. Return the data as is.
-                return lspData
-            }
-
-            // Data is a dictionary without a `workDoneProgressTitle.
-            // Add `workDoneProgressTitle` to the dictionary and return it.
-            var mutableDictionary = dictionary
-            mutableDictionary["workDoneProgressTitle"] = .string(message)
-            return .dictionary(mutableDictionary)
-        }()
-
-        let title = "Swift BSP: \(message)"
+    private func sendStart(taskId: TaskId, message: String) {
         let notification = TaskStartNotification(
             taskId: taskId,
             eventTime: Date(),
-            message: title,
-            dataKind: dataKind,
-            data: notificationData
+            message: "Swift BSP: \(message)",
+            dataKind: nil,
+            data: .dictionary(["workDoneProgressTitle": .string(message)])
         )
 
         connection?.send(notification)
@@ -113,37 +80,5 @@ public struct TaskReporter: Sendable {
         )
 
         connection?.send(notification)
-    }
-}
-
-extension CompileTaskData: @retroactive LSPAnyCodable {
-    public init?(fromLSPDictionary dictionary: [String: LSPAny]) { nil }
-    public func encodeToLSPAny() -> LSPAny {
-        .dictionary([
-            "target": .dictionary([
-                "uri": .string(target.uri.stringValue)
-            ])
-        ])
-    }
-}
-
-extension TestStartData: @retroactive LSPAnyCodable {
-    public init?(fromLSPDictionary dictionary: [String: LSPAny]) { nil }
-    public func encodeToLSPAny() -> LSPAny {
-        .dictionary([
-            "displayName": .string(displayName),
-            "location": location?.encodeToLSPAny() ?? .null,
-        ])
-    }
-}
-
-extension TestTaskData: @retroactive LSPAnyCodable {
-    public init?(fromLSPDictionary dictionary: [String: LSPAny]) { nil }
-    public func encodeToLSPAny() -> LSPAny {
-        .dictionary([
-            "target": .dictionary([
-                "uri": .string(target.uri.stringValue)
-            ])
-        ])
     }
 }

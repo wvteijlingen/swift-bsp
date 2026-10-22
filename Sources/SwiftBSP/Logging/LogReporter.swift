@@ -8,7 +8,7 @@ public struct LogReporter: Sendable {
         self.connection = connection
     }
 
-    public func log(message: String, type: WindowMessageType = .log, logName: String? = nil) {
+    public func log(message: String, type: WindowMessageType = .log) {
         let notification = LogMessageNotification(type: type, message: message, logName: "swift-bsp")
         connection?.send(notification)
     }

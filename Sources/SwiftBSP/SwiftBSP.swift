@@ -52,8 +52,6 @@ actor SwiftBSP {
         )
 
         self.buildServiceSession = try session.get()
-
-        try await loadProject()
     }
 
     deinit {
