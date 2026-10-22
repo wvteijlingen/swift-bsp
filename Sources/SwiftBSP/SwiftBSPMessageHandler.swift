@@ -89,7 +89,7 @@ final actor SwiftBSPMessageHandler: QueueBasedMessageHandler {
     func handle<Request>(
         request: Request,
         id: RequestID,
-        reply: @escaping @Sendable (LSPResult<Request.Response>) -> Void
+        reply: @escaping @Sendable (Result<Request.Response, any Error>) -> Void
     ) async where Request: RequestType {
         let requestType = "\(request.self)"
         Log.default.debug("[Receive] Request '\(id, privacy: .public)': \(requestType, privacy: .public)")
@@ -155,7 +155,7 @@ final actor SwiftBSPMessageHandler: QueueBasedMessageHandler {
             }
 
         default:
-            reply(.failure(.requestNotImplemented(Request.self)))
+            reply(.failure(ResponseError.methodNotFound(Request.method)))
         }
     }
 }
@@ -199,12 +199,14 @@ extension SwiftBSPMessageHandler {
         return WorkspaceBuildTargetsResponse(targets: buildTargets)
     }
 
-    private func handleBuildTargetPrepare(request: BuildTargetPrepareRequest) async throws -> VoidResponse {
+    private func handleBuildTargetPrepare(
+        request: BuildTargetPrepareRequest
+    ) async throws -> BuildTargetPrepareResponse {
         guard state == .running else { throw BuildServerError.projectNotInitialized }
 
         try await bsp.prepareTargets(targetIdentifiers: request.targets)
 
-        return VoidResponse()
+        return BuildTargetPrepareResponse()
     }
 
     private func handleTextDocumentSourceKitOptions(
