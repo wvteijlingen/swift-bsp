@@ -21,21 +21,21 @@ final actor SwiftBSPMessageHandler: QueueBasedMessageHandler {
     public let messageHandlingQueue = AsyncQueue<BuildServerMessageDependencyTracker>()
 
     private var state = State.waitingForInitializeRequest
-    private var bsp: SwiftBSP
     private let onExit: (_ code: Int32) -> Void
-    private let containerPath: FilePath
-    private let containerDirectoryPath: FilePath
+
+    private let config: Configuration
     private let connection: JSONRPCConnection
+    private let taskReporter: TaskReporter
+    private let logReporter: LogReporter
+
+    private var bsp: SwiftBSP
 
     init(
-        containerPath: FilePath,
-        arenaPath: FilePath,
-        config: BuildServerConfig,
+        config: Configuration,
         messageMirrorFile: FileHandle?,
         onExit: @escaping (_ code: Int32) -> Void
     ) async throws {
-        self.containerPath = containerPath
-        self.containerDirectoryPath = containerPath.removingLastComponent()
+        self.config = config
         self.onExit = onExit
         self.connection = JSONRPCConnection(
             name: "swift-bsp",
@@ -45,13 +45,9 @@ final actor SwiftBSPMessageHandler: QueueBasedMessageHandler {
             receiveMirrorFile: messageMirrorFile,
             sendMirrorFile: messageMirrorFile
         )
-
-        self.bsp = try await SwiftBSP(
-            containerPath: containerPath,
-            arenaPath: arenaPath,
-            config: config,
-            taskReporter: TaskReporter(connection: nil)
-        )
+        self.taskReporter = TaskReporter(connection: connection)
+        self.logReporter = LogReporter(connection: connection)
+        self.bsp = try await SwiftBSP(config: config, taskReporter: taskReporter, logReporter: logReporter)
     }
 
     package func start() async {
@@ -61,8 +57,6 @@ final actor SwiftBSPMessageHandler: QueueBasedMessageHandler {
                 Log.default.info("Connection closed")
             }
         )
-
-        await bsp.setTaskReporter(TaskReporter(connection: connection))
     }
 
     func handle(notification: some NotificationType) {
@@ -70,7 +64,7 @@ final actor SwiftBSPMessageHandler: QueueBasedMessageHandler {
 
         Log.default.debug("[Receive] Notification - \(notificationType, privacy: .public)")
 
-        Task {
+        _ = Task {
             switch notification {
             case _ as CancelRequestNotification:
                 break
@@ -116,7 +110,9 @@ final actor SwiftBSPMessageHandler: QueueBasedMessageHandler {
             let state = self.state
             guard state == .running else {
                 await requestAndReply.reply {
-                    throw ResponseError.requestFailed("Request '\(String(describing: type(of: requestAndReply.params)))' received while the build server is '\(state)'")
+                    throw ResponseError.requestFailed(
+                        "Request '\(String(describing: type(of: requestAndReply.params)))' received while the build server is '\(state)'"
+                    )
                 }
                 return
             }
@@ -243,24 +239,37 @@ extension SwiftBSPMessageHandler {
     func handleOnWatchedFilesDidChange(notification: OnWatchedFilesDidChangeNotification) async throws {
         guard state == .running else { throw BuildServerError.projectNotInitialized }
 
-        let needsReload = notification.changes.contains { change in
-            guard let filePath = change.uri.fileURL?.path(percentEncoded: false) else { return false }
+        let needsReload = notification.changes.contains { fileEvent in
+            let filePath = fileEvent.uri.fileURL.map { FilePath($0.path(percentEncoded: false)) }
+            let createdOrDeleted = fileEvent.type == .created || fileEvent.type == .deleted
 
-            if change.type == .created ||
-                change.type == .deleted ||
-                filePath == containerPath.string ||
-                filePath == containerDirectoryPath.appending("buildServer.json").string
-            {
-                Log.default.info("Reloading. Reason: \(change.type.rawValue, privacy: .public), \(filePath, privacy: .public)")
+            guard let filePath else { return false }
+
+            if createdOrDeleted || filePath == config.xcodeProjectPath || filePath == config.configFilePath {
+                logReporter.log(message: "Re-indexing, \(fileEvent.type.rawValue): \(filePath)")
+                Log.default.info(
+                    "Reloading, \(fileEvent.type.rawValue, privacy: .public): \(filePath, privacy: .public)"
+                )
                 return true
             }
-            
+
             return false
         }
 
         if needsReload {
             try await bsp.loadProject()
             connection.send(OnBuildTargetDidChangeNotification(changes: nil))
+        }
+    }
+}
+
+extension FileChangeType {
+    fileprivate var title: String {
+        switch self {
+        case .created: "created"
+        case .changed: "changed"
+        case .deleted: "deleted"
+        default: "unknown change type"
         }
     }
 }

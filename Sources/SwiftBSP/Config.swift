@@ -1,37 +1,45 @@
-//
-//  Config.swift
-//  swift-bsp
-//
-//  Created by Ward van Teijlingen on 19/01/2026.
-//
-
 import Foundation
 import System
 
-struct BuildServerConfig: Decodable {
-    let swiftBSP: SwiftBSP?
+public struct Configuration: Decodable, Sendable {
+    public let configFilePath: FilePath
+    public let verboseLogging: Bool
+    public let xcodeProjectPath: FilePath
+    public let workspacePath: FilePath
+    public var scratchPath: FilePath
+    public let configuration: String?
+    public let runDestination: RunDestination?
 
-    init(jsonFilePath: FilePath) throws {
-        do {
-            Log.default.debug("Reading configuration from \(jsonFilePath, privacy: .public)")
-            let data = try Data(contentsOf: URL(filePath: jsonFilePath.string))
-            self = try JSONDecoder().decode(BuildServerConfig.self, from: data)
-        } catch {
-            throw BuildServerError.invalidConfig(error)
-        }
+    public init(
+        configFilePath: FilePath,
+        verboseLogging: Bool,
+        xcodeProjectPath: FilePath,
+        workspacePath: FilePath,
+        scratchPath: FilePath,
+        configuration: String?,
+        runDestination: Configuration.RunDestination?
+    ) {
+        self.configFilePath = configFilePath
+        self.verboseLogging = verboseLogging
+        self.xcodeProjectPath = xcodeProjectPath
+        self.workspacePath = workspacePath
+        self.scratchPath = scratchPath
+        self.configuration = configuration
+        self.runDestination = runDestination
     }
 }
 
-extension BuildServerConfig {
-    struct SwiftBSP: Decodable {
-        let verboseLogging: Bool?
-        let project: String?
-        let configuration: String?
-        let runDestination: RunDestination?
+extension Configuration {
+    public struct UserDefined: Decodable, Sendable {
+        public let verboseLogging: Bool?
+        public let project: String?
+        public let configuration: String?
+        public let runDestination: RunDestination?
+        public let scratchPath: String?
     }
 
-    struct RunDestination: Decodable {
-        let platform: String?
-        let sdk: String
+    public struct RunDestination: Decodable, Sendable {
+        public let platform: String?
+        public let sdk: String
     }
 }

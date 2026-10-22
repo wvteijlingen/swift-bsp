@@ -4,8 +4,7 @@ import System
 extension SWBArenaInfo {
     /// Creates an `SWBArenaInfo` instance with paths derived from the given root path.
     ///
-    /// The arena paths mirror those used by Xcode. This enables users to re-use the same directory
-    /// for swift-bsp and Xcodes DerivedData, which can help with caching and performance.
+    /// The arena paths mirror those used by Xcode.
     init(root: FilePath, indexEnableDataStore: Bool) {
         self.init(
             derivedDataPath: root.string,

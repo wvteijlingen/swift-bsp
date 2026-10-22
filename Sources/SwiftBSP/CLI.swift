@@ -9,7 +9,7 @@ import System
 @main
 struct CLI: AsyncParsableCommand {
     func run() async throws {
-        Task {
+        _ = Task {
             do {
                 try await runServer()
             } catch {
@@ -32,33 +32,25 @@ struct CLI: AsyncParsableCommand {
         Log.default.info("Running in \(FileManager.default.currentDirectoryPath, privacy: .public)")
 
         let workingDirectory = FilePath(FileManager.default.currentDirectoryPath)
-        let arenaPath = workingDirectory.appending("build")
-        let config = try BuildServerConfig(jsonFilePath: workingDirectory.appending("buildServer.json"))
+        let config = try makeConfiguration(workingDirectory: workingDirectory)
 
-        let containerPath =
-            if let project = config.swiftBSP?.project {
-                workingDirectory.appending(project)
-            } else {
-                findXcodeWorkspaceOrProject(in: workingDirectory)
-            }
-
-        guard let containerPath else { throw BuildServerError.cannotDetermineXcodeProject }
-
-        if !FileManager.default.fileExists(atPath: arenaPath.string) {
-            try FileManager.default.createDirectory(atPath: arenaPath.string, withIntermediateDirectories: true)
+        if !FileManager.default.fileExists(atPath: config.scratchPath.string) {
+            try FileManager.default.createDirectory(
+                atPath: config.scratchPath.string, withIntermediateDirectories: true)
         }
 
-        Log.default.info("Starting in '\(workingDirectory, privacy: .public)' for '\(containerPath, privacy: .public)'")
-        Log.default.info("Configuration: \(String(describing: config.swiftBSP), privacy: .public)")
+        Log.default.info(
+            "Starting in '\(workingDirectory, privacy: .public)' for '\(config.xcodeProjectPath, privacy: .public)'"
+        )
+
+        Log.default.info("Configuration: \(String(describing: config), privacy: .public)")
 
         let messageMirrorFile: FileHandle? =
-            config.swiftBSP?.verboseLogging == true
-            ? try messageMirrorHandle(workingDirectory: workingDirectory)
+            config.verboseLogging == true
+            ? try messageMirrorHandle(scratchPath: config.scratchPath)
             : nil
 
-        let buildServer = try await SwiftBSPMessageHandler(
-            containerPath: containerPath,
-            arenaPath: arenaPath,
+        let server = try await SwiftBSPMessageHandler(
             config: config,
             messageMirrorFile: messageMirrorFile,
             onExit: { @Sendable code in
@@ -68,21 +60,61 @@ struct CLI: AsyncParsableCommand {
                 )
 
                 _Exit(code)
-            })
+            }
+        )
 
-        await buildServer.start()
+        await server.start()
     }
 }
 
-private func messageMirrorHandle(workingDirectory: FilePath) throws -> FileHandle {
-    let fileURL = URL(filePath: "\(workingDirectory)/build/swift-bsp.log")
+private func makeConfiguration(workingDirectory: FilePath) throws -> Configuration {
+    let configFilePath = workingDirectory.appending("buildServer.json")
+    let userDefinedConfiguration = try BuildServerJSON(jsonFilePath: configFilePath).swiftBSP
 
-    try? FileManager.default.removeItem(at: fileURL)
-    try "".write(to: fileURL, atomically: true, encoding: .utf8)
+    let scratchPad =
+        if let userDefinedScratchPad = userDefinedConfiguration?.scratchPath.map({ FilePath($0) }) {
+            if userDefinedScratchPad.isAbsolute {
+                userDefinedScratchPad
+            } else {
+                workingDirectory.appending(userDefinedScratchPad.string)
+            }
+        } else {
+            workingDirectory.appending(".swift-bsp")
+        }
 
-    Log.default.info("Logging messages to \(fileURL.path(percentEncoded: false), privacy: .public)")
+    let containerPath =
+        if let project = userDefinedConfiguration?.project {
+            workingDirectory.appending(project)
+        } else {
+            findXcodeWorkspaceOrProject(in: workingDirectory)
+        }
 
-    return try FileHandle(forUpdating: fileURL)
+    guard let containerPath else { throw BuildServerError.cannotDetermineXcodeProject }
+
+    return Configuration(
+        configFilePath: configFilePath,
+        verboseLogging: userDefinedConfiguration?.verboseLogging ?? false,
+        xcodeProjectPath: containerPath,
+        workspacePath: workingDirectory,
+        scratchPath: scratchPad,
+        configuration: userDefinedConfiguration?.configuration,
+        runDestination: userDefinedConfiguration?.runDestination
+    )
+}
+
+private func messageMirrorHandle(scratchPath: FilePath) throws -> FileHandle {
+    let logsDirectory = scratchPath.appending("logs")
+    let logURL = logsDirectory.appending("\(Date().timeIntervalSince1970).log").fileURL
+
+    if !FileManager.default.fileExists(atPath: logsDirectory.string) {
+        try FileManager.default.createDirectory(atPath: logsDirectory.string, withIntermediateDirectories: true)
+    }
+
+    try "".write(to: logURL, atomically: true, encoding: .utf8)
+
+    Log.default.info("Logging messages to \(logURL.path(percentEncoded: false), privacy: .public)")
+
+    return try FileHandle(forUpdating: logURL)
 }
 
 private func findXcodeWorkspaceOrProject(in directory: FilePath) -> FilePath? {
@@ -107,4 +139,18 @@ private func findXcodeWorkspaceOrProject(in directory: FilePath) -> FilePath? {
     }?.path(percentEncoded: false)
 
     return (xcworkspace ?? xcodeproj).flatMap { FilePath($0) }
+}
+
+private struct BuildServerJSON: Decodable, Sendable {
+    let swiftBSP: Configuration.UserDefined?
+
+    init(jsonFilePath: FilePath) throws {
+        do {
+            Log.default.debug("Reading configuration from \(jsonFilePath, privacy: .public)")
+            let data = try Data(contentsOf: URL(filePath: jsonFilePath.string))
+            self = try JSONDecoder().decode(BuildServerJSON.self, from: data)
+        } catch {
+            throw BuildServerError.invalidConfig(error)
+        }
+    }
 }
