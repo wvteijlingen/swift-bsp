@@ -1,0 +1,34 @@
+CREATE_SESSION
+SET_SESSION_SYSTEM_INFO
+SET_SESSION_USER_INFO
+COMPUTE_DEPENDENCY_GRAPH_REQUEST
+  - 320fb9466095fc0f9cd888bb584aebfbd01de5efbdb0778ec2cc312d20ac66e4
+SET_SESSION_SYSTEM_INFO
+CREATE_BUILD
+  - configured targets: 320fb9466095fc0f9cd888bb584aebfbd01de5efbdb0778ec2cc312d20ac66e4
+COMPUTE_DEPENDENCY_GRAPH_REQUEST
+  - 320fb9466095fc0f9cd888bb584aebfbd01de5efbdb0778ec2cc312d20ac66e4
+SET_SESSION_SYSTEM_INFO
+SET_SESSION_USER_INFO
+CREATE_BUILD
+  - configured targets: 320fb9466095fc0f9cd888bb584aebfbd01de5efbdb0778ec2cc312d20ac66e4
+  buildDescriptionID: nil
+BUILD_DESCRIPTION_TARGET_INFO
+  - buildDescriptionID
+INDEXING_HEADER_INFO_REQUESTED
+  - buildDescriptionID
+  - targetID: 320fb9466095fc0f9cd888bb584aebfbd01de5efbdb0778ec2cc312d20ac66e4
+INDEXING_INFO_REQUESTED
+  - buildDescriptionID
+  - targetID: 320fb9466095fc0f9cd888bb584aebfbd01de5efbdb0778ec2cc312d20ac66e4
+CREATE_BUILD
+  - prepareForIndexing(buildOnlyTheseTargets: 320fb9466095fc0f9cd888bb584aebfbd01de5efbdb0778ec2cc312d20ac66e4)
+  - buildDescriptionID
+INDEXING_INFO_REQUESTED
+  - buildDescriptionID
+  - targetID: 320fb9466095fc0f9cd888bb584aebfbd01de5efbdb0778ec2cc312d20ac66e4
+  - filePath: Users/ward/Desktop/Routertje/Routertje/ContentView.swift
+INDEXING_INFO_REQUESTED
+  - buildDescriptionID
+  - targetID: PACKAGE-TARGET:InterfaceOrientation
+  - filePath: /Users/ward/Library/Developer/Xcode/DerivedData/Routertje-hgqtmykyujnjhmdfntxdandzmnfj/SourcePackages/checkouts/swiftui-interface-orientation/Sources/InterfaceOrientation/InterfaceOrientationsViewModifier.swift

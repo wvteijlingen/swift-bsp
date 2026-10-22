@@ -1,0 +1,32 @@
+(lldb) po target
+▿ SWBTargetInfo
+  - guid : "320fb9466095fc0f9cd888bb584aebfbd01de5efbdb0778ec2cc312d20ac66e4"
+  - targetName : "Routertje"
+  - projectName : "Routertje"
+  - dynamicTargetVariantGuid : nil
+(lldb) po target
+▿ SWBTargetInfo
+  - guid : "PACKAGE-PRODUCT:InterfaceOrientation"
+  - targetName : "InterfaceOrientation"
+  - projectName : "swiftui-interface-orientation"
+  ▿ dynamicTargetVariantGuid : Optional<String>
+    - some : "PACKAGE-PRODUCT:InterfaceOrientation-16167A39F32E0931-dynamic"
+(lldb) po target
+▿ SWBTargetInfo
+  - guid : "PACKAGE-PRODUCT:InterfaceOrientation-16167A39F32E0931-dynamic"
+  - targetName : "InterfaceOrientation"
+  - projectName : "swiftui-interface-orientation"
+  - dynamicTargetVariantGuid : nil
+(lldb) po target
+▿ SWBTargetInfo
+  - guid : "PACKAGE-TARGET:InterfaceOrientation"
+  - targetName : "InterfaceOrientation"
+  - projectName : "swiftui-interface-orientation"
+  ▿ dynamicTargetVariantGuid : Optional<String>
+    - some : "PACKAGE-TARGET:InterfaceOrientation-16167A39F32E0931-dynamic"
+(lldb) po target
+▿ SWBTargetInfo
+  - guid : "PACKAGE-TARGET:InterfaceOrientation-16167A39F32E0931-dynamic"
+  - targetName : "InterfaceOrientation"
+  - projectName : "swiftui-interface-orientation"
+  - dynamicTargetVariantGuid : nil

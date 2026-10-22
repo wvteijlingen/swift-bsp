@@ -1,0 +1,7 @@
+#!/bin/zsh
+
+set -e
+
+tar -cvzf swift-bsp.tar.gz Sources Package.resolved Package.swift README.md
+echo "Tarball created, SHA256 checksum:"
+shasum -a 256 .build/swift-bsp.tar.gz

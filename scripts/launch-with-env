@@ -1,0 +1,7 @@
+#!/bin/zsh
+
+SCRIPT=$(realpath "$0")
+SCRIPTPATH=$(dirname "$SCRIPT")
+
+export SWBBUILDSERVICE_PATH="$SCRIPTPATH/../.build/arm64-apple-macosx/release/SWBBuildServiceBundle"
+exec "$SCRIPTPATH/../swift-bsp"

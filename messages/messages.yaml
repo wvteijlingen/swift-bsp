@@ -1,0 +1,742 @@
+(lldb) po wrapper.message
+▿ SetSessionSystemInfoRequest
+  - sessionHandle : "S0"
+  ▿ operatingSystemVersion : 26.1.0
+    ▿ rawValue : 3 elements
+      - 0 : 26
+      - 1 : 1
+      - 2 : 0
+  - productBuildVersion : "25B78"
+  - nativeArchitecture : "arm64"
+
+
+(lldb) po wrapper.message
+▿ SetSessionUserInfoRequest
+  - sessionHandle : "S0"
+  - user : "ward"
+  - group : "staff"
+  - uid : 501
+  - gid : 20
+  - home : "/Users/ward"
+  ▿ processEnvironment : 35 elements
+    ▿ 0 : 2 elements
+      - key : "__CFBundleIdentifier"
+      - value : "com.apple.Terminal"
+    ▿ 1 : 2 elements
+      - key : "USER"
+      - value : "ward"
+    ▿ 2 : 2 elements
+      - key : "OLDPWD"
+      - value : "/Users/ward/Desktop"
+    ▿ 3 : 2 elements
+      - key : "XPC_FLAGS"
+      - value : "0x0"
+    ▿ 4 : 2 elements
+      - key : "XCBBUILDSERVICE_PATH"
+      - value : "/Users/ward/Desktop/swift-build/.build/arm64-apple-macosx/debug/SWBBuildServiceBundle"
+    ▿ 5 : 2 elements
+      - key : "TERM_PROGRAM_VERSION"
+      - value : "465"
+    ▿ 6 : 2 elements
+      - key : "XPC_SERVICE_NAME"
+      - value : "0"
+    ▿ 7 : 2 elements
+      - key : "SHLVL"
+      - value : "1"
+    ▿ 8 : 2 elements
+      - key : "MANPATH"
+      - value : "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk/usr/share/man:/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/usr/share/man:/Applications/Xcode.app/Contents/Developer/usr/share/man:/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/share/man:/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk/usr/share/man:/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/usr/share/man:/Applications/Xcode.app/Contents/Developer/usr/share/man:/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/share/man:"
+    ▿ 9 : 2 elements
+      - key : "TMPDIR"
+      - value : "/var/folders/8g/2fs2864s5s3_8wrc8rc2sm_00000gn/T/"
+    ▿ 10 : 2 elements
+      - key : "UsePerConfigurationBuildLocations"
+      - value : "YES"
+    ▿ 11 : 2 elements
+      - key : "TERM_PROGRAM"
+      - value : "Apple_Terminal"
+    ▿ 12 : 2 elements
+      - key : "_"
+      - value : "/usr/bin/swift"
+    ▿ 13 : 2 elements
+      - key : "SSH_AUTH_SOCK"
+      - value : "/private/tmp/com.apple.launchd.SaaR7OTzfA/Listeners"
+    ▿ 14 : 2 elements
+      - key : "LC_CTYPE"
+      - value : "UTF-8"
+    ▿ 15 : 2 elements
+      - key : "__CF_USER_TEXT_ENCODING"
+      - value : "0x1F5:0x0:0x0"
+    ▿ 16 : 2 elements
+      - key : "HOMEBREW_CELLAR"
+      - value : "/opt/homebrew/Cellar"
+    ▿ 17 : 2 elements
+      - key : "HOMEBREW_PREFIX"
+      - value : "/opt/homebrew"
+    ▿ 18 : 2 elements
+      - key : "HOMEBREW_REPOSITORY"
+      - value : "/opt/homebrew"
+    ▿ 19 : 2 elements
+      - key : "CPATH"
+      - value : "/usr/local/include"
+    ▿ 20 : 2 elements
+      - key : "ANDROID_HOME"
+      - value : "/Users/ward/Library/Android/sdk"
+    ▿ 21 : 2 elements
+      - key : "PWD"
+      - value : "/Users/ward/Desktop/swift-build"
+    ▿ 22 : 2 elements
+      - key : "OSLogRateLimit"
+      - value : "64"
+    ▿ 23 : 2 elements
+      - key : "LOGNAME"
+      - value : "ward"
+    ▿ 24 : 2 elements
+      - key : "LANG"
+      - value : "C.UTF-8"
+    ▿ 25 : 2 elements
+      - key : "SHELL"
+      - value : "/bin/zsh"
+    ▿ 26 : 2 elements
+      - key : "TERM"
+      - value : "xterm-color"
+    ▿ 27 : 2 elements
+      - key : "LIBRARY_PATH"
+      - value : "/usr/local/lib"
+    ▿ 28 : 2 elements
+      - key : "HOME"
+      - value : "/Users/ward"
+    ▿ 29 : 2 elements
+      - key : "ASDF_DIR"
+      - value : "/opt/homebrew/opt/asdf/libexec"
+    ▿ 30 : 2 elements
+      - key : "INFOPATH"
+      - value : "/opt/homebrew/share/info:"
+    ▿ 31 : 2 elements
+      - key : "TERM_SESSION_ID"
+      - value : "A6E5753E-BA8D-49DF-B57C-D3559735BE27"
+    ▿ 32 : 2 elements
+      - key : "PATH"
+      - value : "/Applications/Xcode.app/Contents/Developer/usr/bin:/Users/ward/.deno/bin:/Users/ward/.asdf/shims:/opt/homebrew/opt/asdf/libexec/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/opt/pmk/env/global/bin:/Library/Apple/usr/bin:/Users/ward/Library/Android/sdk/emulator:/Users/ward/Library/Android/sdk/platform-tools"
+    ▿ 33 : 2 elements
+      - key : "EDITOR"
+      - value : "nano"
+    ▿ 34 : 2 elements
+      - key : "SDKROOT"
+      - value : "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk"
+  ▿ buildSystemEnvironment : 34 elements
+    ▿ 0 : 2 elements
+      - key : "OSLogRateLimit"
+      - value : "64"
+    ▿ 1 : 2 elements
+      - key : "USER"
+      - value : "ward"
+    ▿ 2 : 2 elements
+      - key : "HOME"
+      - value : "/Users/ward"
+    ▿ 3 : 2 elements
+      - key : "ANDROID_HOME"
+      - value : "/Users/ward/Library/Android/sdk"
+    ▿ 4 : 2 elements
+      - key : "TERM_PROGRAM_VERSION"
+      - value : "465"
+    ▿ 5 : 2 elements
+      - key : "TMPDIR"
+      - value : "/var/folders/8g/2fs2864s5s3_8wrc8rc2sm_00000gn/T/"
+    ▿ 6 : 2 elements
+      - key : "LIBRARY_PATH"
+      - value : "/usr/local/lib"
+    ▿ 7 : 2 elements
+      - key : "HOMEBREW_REPOSITORY"
+      - value : "/opt/homebrew"
+    ▿ 8 : 2 elements
+      - key : "TERM_SESSION_ID"
+      - value : "A6E5753E-BA8D-49DF-B57C-D3559735BE27"
+    ▿ 9 : 2 elements
+      - key : "XCBBUILDSERVICE_PATH"
+      - value : "/Users/ward/Desktop/swift-build/.build/arm64-apple-macosx/debug/SWBBuildServiceBundle"
+    ▿ 10 : 2 elements
+      - key : "LOGNAME"
+      - value : "ward"
+    ▿ 11 : 2 elements
+      - key : "PATH"
+      - value : "/Applications/Xcode.app/Contents/Developer/usr/bin:/Users/ward/.deno/bin:/Users/ward/.asdf/shims:/opt/homebrew/opt/asdf/libexec/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/opt/pmk/env/global/bin:/Library/Apple/usr/bin:/Users/ward/Library/Android/sdk/emulator:/Users/ward/Library/Android/sdk/platform-tools"
+    ▿ 12 : 2 elements
+      - key : "TERM_PROGRAM"
+      - value : "Apple_Terminal"
+    ▿ 13 : 2 elements
+      - key : "SDKROOT"
+      - value : "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk"
+    ▿ 14 : 2 elements
+      - key : "HOMEBREW_PREFIX"
+      - value : "/opt/homebrew"
+    ▿ 15 : 2 elements
+      - key : "ASDF_DIR"
+      - value : "/opt/homebrew/opt/asdf/libexec"
+    ▿ 16 : 2 elements
+      - key : "PWD"
+      - value : "/Users/ward/Desktop/swift-build"
+    ▿ 17 : 2 elements
+      - key : "_"
+      - value : "/usr/bin/swift"
+    ▿ 18 : 2 elements
+      - key : "TERM"
+      - value : "xterm-color"
+    ▿ 19 : 2 elements
+      - key : "CPATH"
+      - value : "/usr/local/include"
+    ▿ 20 : 2 elements
+      - key : "INFOPATH"
+      - value : "/opt/homebrew/share/info:"
+    ▿ 21 : 2 elements
+      - key : "MANPATH"
+      - value : "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk/usr/share/man:/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/usr/share/man:/Applications/Xcode.app/Contents/Developer/usr/share/man:/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/share/man:/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk/usr/share/man:/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/usr/share/man:/Applications/Xcode.app/Contents/Developer/usr/share/man:/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/share/man:"
+    ▿ 22 : 2 elements
+      - key : "HOMEBREW_CELLAR"
+      - value : "/opt/homebrew/Cellar"
+    ▿ 23 : 2 elements
+      - key : "SHLVL"
+      - value : "1"
+    ▿ 24 : 2 elements
+      - key : "XPC_SERVICE_NAME"
+      - value : "0"
+    ▿ 25 : 2 elements
+      - key : "__CFBundleIdentifier"
+      - value : "com.apple.Terminal"
+    ▿ 26 : 2 elements
+      - key : "EDITOR"
+      - value : "nano"
+    ▿ 27 : 2 elements
+      - key : "__CF_USER_TEXT_ENCODING"
+      - value : "0x1F5:0x0:0x0"
+    ▿ 28 : 2 elements
+      - key : "LC_CTYPE"
+      - value : "UTF-8"
+    ▿ 29 : 2 elements
+      - key : "SSH_AUTH_SOCK"
+      - value : "/private/tmp/com.apple.launchd.SaaR7OTzfA/Listeners"
+    ▿ 30 : 2 elements
+      - key : "OLDPWD"
+      - value : "/Users/ward/Desktop"
+    ▿ 31 : 2 elements
+      - key : "SHELL"
+      - value : "/bin/zsh"
+    ▿ 32 : 2 elements
+      - key : "XPC_FLAGS"
+      - value : "0x0"
+    ▿ 33 : 2 elements
+      - key : "LANG"
+      - value : "C.UTF-8"
+(lldb) 
+
+
+(lldb) po wrapper.message
+▿ ComputeDependencyGraphRequest
+  - sessionHandle : "S0"
+  ▿ targetGUIDs : 1 element
+    ▿ 0 : TargetGUID
+      - rawValue : "320fb9466095fc0f9cd888bb584aebfbd01de5efbdb0778ec2cc312d20ac66e4"
+  ▿ buildParameters : BuildParametersMessagePayload
+    - action : "build"
+    ▿ configuration : Optional<String>
+      - some : "Debug"
+    ▿ activeRunDestination : Optional<RunDestinationInfo>
+      ▿ some : RunDestinationInfo
+        - platform : "iphoneos"
+        - sdk : "iphoneos26.2"
+        ▿ sdkVariant : Optional<String>
+          - some : "iphoneos"
+        - targetArchitecture : "undefined_arch"
+        ▿ supportedArchitectures : ["armv4t", "armv5", "armv6", "armv7", "armv7f", "armv7s", "armv7k", "arm64", "arm64e"]
+          ▿ array : 9 elements
+            - 0 : "armv4t"
+            - 1 : "armv5"
+            - 2 : "armv6"
+            - 3 : "armv7"
+            - 4 : "armv7f"
+            - 5 : "armv7s"
+            - 6 : "armv7k"
+            - 7 : "arm64"
+            - 8 : "arm64e"
+          ▿ uniqueIndices : 9 elements
+            ▿ 0 : 2 elements
+              - key : "armv6"
+              - value : 2
+            ▿ 1 : 2 elements
+              - key : "armv7k"
+              - value : 6
+            ▿ 2 : 2 elements
+              - key : "arm64"
+              - value : 7
+            ▿ 3 : 2 elements
+              - key : "armv7s"
+              - value : 5
+            ▿ 4 : 2 elements
+              - key : "armv7"
+              - value : 3
+            ▿ 5 : 2 elements
+              - key : "arm64e"
+              - value : 8
+            ▿ 6 : 2 elements
+              - key : "armv4t"
+              - value : 0
+            ▿ 7 : 2 elements
+              - key : "armv5"
+              - value : 1
+            ▿ 8 : 2 elements
+              - key : "armv7f"
+              - value : 4
+        - disableOnlyActiveArch : true
+        - hostTargetedPlatform : nil
+    ▿ activeArchitecture : Optional<String>
+      - some : "undefined_arch"
+    ▿ arenaInfo : Optional<ArenaInfo>
+      ▿ some : ArenaInfo
+        ▿ derivedDataPath : Path
+          - _str : "/Users/ward/Library/Developer/Xcode/DerivedData"
+        ▿ buildProductsPath : Path
+          - _str : "/Users/ward/Library/Developer/Xcode/DerivedData/Routertje-hgqtmykyujnjhmdfntxdandzmnfj/Build/Products"
+        ▿ buildIntermediatesPath : Path
+          - _str : "/Users/ward/Library/Developer/Xcode/DerivedData/Routertje-hgqtmykyujnjhmdfntxdandzmnfj/Build/Intermediates.noindex"
+        ▿ pchPath : Path
+          - _str : "/Users/ward/Library/Developer/Xcode/DerivedData/Routertje-hgqtmykyujnjhmdfntxdandzmnfj/Build/Intermediates.noindex/PrecompiledHeaders"
+        - indexRegularBuildProductsPath : nil
+        - indexRegularBuildIntermediatesPath : nil
+        ▿ indexPCHPath : Path
+          - _str : "/Users/ward/Library/Developer/Xcode/DerivedData/Routertje-hgqtmykyujnjhmdfntxdandzmnfj/Index.noindex/PrecompiledHeaders"
+        ▿ indexDataStoreFolderPath : Optional<Path>
+          ▿ some : Path
+            - _str : "/Users/ward/Library/Developer/Xcode/DerivedData/Routertje-hgqtmykyujnjhmdfntxdandzmnfj/Index.noindex/DataStore"
+        - indexEnableDataStore : true
+    ▿ overrides : SettingsOverridesMessagePayload
+      ▿ synthesized : 1 element
+        ▿ 0 : 2 elements
+          - key : "ACTION"
+          - value : "build"
+      - commandLine : 0 elements
+      - commandLineConfigPath : nil
+      - commandLineConfig : 0 elements
+      - environmentConfigPath : nil
+      - environmentConfig : 0 elements
+      - toolchainOverride : nil
+  - includeImplicitDependencies : true
+  - dependencyScope : SWBProtocol.DependencyScopeMessagePayload.workspace
+
+
+(lldb) po wrapper.message
+▿ SetSessionSystemInfoRequest
+  - sessionHandle : "S0"
+  ▿ operatingSystemVersion : 26.1.0
+    ▿ rawValue : 3 elements
+      - 0 : 26
+      - 1 : 1
+      - 2 : 0
+  - productBuildVersion : "25B78"
+  - nativeArchitecture : "arm64"
+
+
+(lldb) po wrapper.message
+▿ SetSessionUserInfoRequest
+  - sessionHandle : "S0"
+  - user : "ward"
+  - group : "staff"
+  - uid : 501
+  - gid : 20
+  - home : "/Users/ward"
+  ▿ processEnvironment : 35 elements
+    ▿ 0 : 2 elements
+      - key : "HOMEBREW_PREFIX"
+      - value : "/opt/homebrew"
+    ▿ 1 : 2 elements
+      - key : "ASDF_DIR"
+      - value : "/opt/homebrew/opt/asdf/libexec"
+    ▿ 2 : 2 elements
+      - key : "XCBBUILDSERVICE_PATH"
+      - value : "/Users/ward/Desktop/swift-build/.build/arm64-apple-macosx/debug/SWBBuildServiceBundle"
+    ▿ 3 : 2 elements
+      - key : "ANDROID_HOME"
+      - value : "/Users/ward/Library/Android/sdk"
+    ▿ 4 : 2 elements
+      - key : "SHELL"
+      - value : "/bin/zsh"
+    ▿ 5 : 2 elements
+      - key : "HOME"
+      - value : "/Users/ward"
+    ▿ 6 : 2 elements
+      - key : "_"
+      - value : "/usr/bin/swift"
+    ▿ 7 : 2 elements
+      - key : "UsePerConfigurationBuildLocations"
+      - value : "YES"
+    ▿ 8 : 2 elements
+      - key : "SDKROOT"
+      - value : "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk"
+    ▿ 9 : 2 elements
+      - key : "OLDPWD"
+      - value : "/Users/ward/Desktop"
+    ▿ 10 : 2 elements
+      - key : "TERM_PROGRAM_VERSION"
+      - value : "465"
+    ▿ 11 : 2 elements
+      - key : "SSH_AUTH_SOCK"
+      - value : "/private/tmp/com.apple.launchd.SaaR7OTzfA/Listeners"
+    ▿ 12 : 2 elements
+      - key : "TERM_PROGRAM"
+      - value : "Apple_Terminal"
+    ▿ 13 : 2 elements
+      - key : "INFOPATH"
+      - value : "/opt/homebrew/share/info:"
+    ▿ 14 : 2 elements
+      - key : "__CF_USER_TEXT_ENCODING"
+      - value : "0x1F5:0x0:0x0"
+    ▿ 15 : 2 elements
+      - key : "PWD"
+      - value : "/Users/ward/Desktop/swift-build"
+    ▿ 16 : 2 elements
+      - key : "LC_CTYPE"
+      - value : "UTF-8"
+    ▿ 17 : 2 elements
+      - key : "__CFBundleIdentifier"
+      - value : "com.apple.Terminal"
+    ▿ 18 : 2 elements
+      - key : "HOMEBREW_REPOSITORY"
+      - value : "/opt/homebrew"
+    ▿ 19 : 2 elements
+      - key : "TERM_SESSION_ID"
+      - value : "A6E5753E-BA8D-49DF-B57C-D3559735BE27"
+    ▿ 20 : 2 elements
+      - key : "XPC_SERVICE_NAME"
+      - value : "0"
+    ▿ 21 : 2 elements
+      - key : "LOGNAME"
+      - value : "ward"
+    ▿ 22 : 2 elements
+      - key : "LANG"
+      - value : "C.UTF-8"
+    ▿ 23 : 2 elements
+      - key : "USER"
+      - value : "ward"
+    ▿ 24 : 2 elements
+      - key : "XPC_FLAGS"
+      - value : "0x0"
+    ▿ 25 : 2 elements
+      - key : "OSLogRateLimit"
+      - value : "64"
+    ▿ 26 : 2 elements
+      - key : "TMPDIR"
+      - value : "/var/folders/8g/2fs2864s5s3_8wrc8rc2sm_00000gn/T/"
+    ▿ 27 : 2 elements
+      - key : "HOMEBREW_CELLAR"
+      - value : "/opt/homebrew/Cellar"
+    ▿ 28 : 2 elements
+      - key : "MANPATH"
+      - value : "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk/usr/share/man:/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/usr/share/man:/Applications/Xcode.app/Contents/Developer/usr/share/man:/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/share/man:/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk/usr/share/man:/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/usr/share/man:/Applications/Xcode.app/Contents/Developer/usr/share/man:/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/share/man:"
+    ▿ 29 : 2 elements
+      - key : "SHLVL"
+      - value : "1"
+    ▿ 30 : 2 elements
+      - key : "PATH"
+      - value : "/Applications/Xcode.app/Contents/Developer/usr/bin:/Users/ward/.deno/bin:/Users/ward/.asdf/shims:/opt/homebrew/opt/asdf/libexec/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/opt/pmk/env/global/bin:/Library/Apple/usr/bin:/Users/ward/Library/Android/sdk/emulator:/Users/ward/Library/Android/sdk/platform-tools"
+    ▿ 31 : 2 elements
+      - key : "EDITOR"
+      - value : "nano"
+    ▿ 32 : 2 elements
+      - key : "CPATH"
+      - value : "/usr/local/include"
+    ▿ 33 : 2 elements
+      - key : "LIBRARY_PATH"
+      - value : "/usr/local/lib"
+    ▿ 34 : 2 elements
+      - key : "TERM"
+      - value : "xterm-color"
+  ▿ buildSystemEnvironment : 34 elements
+    ▿ 0 : 2 elements
+      - key : "LC_CTYPE"
+      - value : "UTF-8"
+    ▿ 1 : 2 elements
+      - key : "SHLVL"
+      - value : "1"
+    ▿ 2 : 2 elements
+      - key : "XPC_SERVICE_NAME"
+      - value : "0"
+    ▿ 3 : 2 elements
+      - key : "ASDF_DIR"
+      - value : "/opt/homebrew/opt/asdf/libexec"
+    ▿ 4 : 2 elements
+      - key : "__CFBundleIdentifier"
+      - value : "com.apple.Terminal"
+    ▿ 5 : 2 elements
+      - key : "TMPDIR"
+      - value : "/var/folders/8g/2fs2864s5s3_8wrc8rc2sm_00000gn/T/"
+    ▿ 6 : 2 elements
+      - key : "TERM_SESSION_ID"
+      - value : "A6E5753E-BA8D-49DF-B57C-D3559735BE27"
+    ▿ 7 : 2 elements
+      - key : "LIBRARY_PATH"
+      - value : "/usr/local/lib"
+    ▿ 8 : 2 elements
+      - key : "XPC_FLAGS"
+      - value : "0x0"
+    ▿ 9 : 2 elements
+      - key : "HOME"
+      - value : "/Users/ward"
+    ▿ 10 : 2 elements
+      - key : "SHELL"
+      - value : "/bin/zsh"
+    ▿ 11 : 2 elements
+      - key : "TERM_PROGRAM_VERSION"
+      - value : "465"
+    ▿ 12 : 2 elements
+      - key : "SDKROOT"
+      - value : "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk"
+    ▿ 13 : 2 elements
+      - key : "TERM"
+      - value : "xterm-color"
+    ▿ 14 : 2 elements
+      - key : "OSLogRateLimit"
+      - value : "64"
+    ▿ 15 : 2 elements
+      - key : "PATH"
+      - value : "/Applications/Xcode.app/Contents/Developer/usr/bin:/Users/ward/.deno/bin:/Users/ward/.asdf/shims:/opt/homebrew/opt/asdf/libexec/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/opt/pmk/env/global/bin:/Library/Apple/usr/bin:/Users/ward/Library/Android/sdk/emulator:/Users/ward/Library/Android/sdk/platform-tools"
+    ▿ 16 : 2 elements
+      - key : "SSH_AUTH_SOCK"
+      - value : "/private/tmp/com.apple.launchd.SaaR7OTzfA/Listeners"
+    ▿ 17 : 2 elements
+      - key : "LANG"
+      - value : "C.UTF-8"
+    ▿ 18 : 2 elements
+      - key : "HOMEBREW_REPOSITORY"
+      - value : "/opt/homebrew"
+    ▿ 19 : 2 elements
+      - key : "CPATH"
+      - value : "/usr/local/include"
+    ▿ 20 : 2 elements
+      - key : "PWD"
+      - value : "/Users/ward/Desktop/swift-build"
+    ▿ 21 : 2 elements
+      - key : "LOGNAME"
+      - value : "ward"
+    ▿ 22 : 2 elements
+      - key : "XCBBUILDSERVICE_PATH"
+      - value : "/Users/ward/Desktop/swift-build/.build/arm64-apple-macosx/debug/SWBBuildServiceBundle"
+    ▿ 23 : 2 elements
+      - key : "USER"
+      - value : "ward"
+    ▿ 24 : 2 elements
+      - key : "__CF_USER_TEXT_ENCODING"
+      - value : "0x1F5:0x0:0x0"
+    ▿ 25 : 2 elements
+      - key : "ANDROID_HOME"
+      - value : "/Users/ward/Library/Android/sdk"
+    ▿ 26 : 2 elements
+      - key : "INFOPATH"
+      - value : "/opt/homebrew/share/info:"
+    ▿ 27 : 2 elements
+      - key : "MANPATH"
+      - value : "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk/usr/share/man:/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/usr/share/man:/Applications/Xcode.app/Contents/Developer/usr/share/man:/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/share/man:/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk/usr/share/man:/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/usr/share/man:/Applications/Xcode.app/Contents/Developer/usr/share/man:/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/share/man:"
+    ▿ 28 : 2 elements
+      - key : "_"
+      - value : "/usr/bin/swift"
+    ▿ 29 : 2 elements
+      - key : "OLDPWD"
+      - value : "/Users/ward/Desktop"
+    ▿ 30 : 2 elements
+      - key : "HOMEBREW_CELLAR"
+      - value : "/opt/homebrew/Cellar"
+    ▿ 31 : 2 elements
+      - key : "TERM_PROGRAM"
+      - value : "Apple_Terminal"
+    ▿ 32 : 2 elements
+      - key : "EDITOR"
+      - value : "nano"
+    ▿ 33 : 2 elements
+      - key : "HOMEBREW_PREFIX"
+      - value : "/opt/homebrew"
+
+
+(lldb) po wrapper.message
+▿ CreateBuildRequest
+  - sessionHandle : "S0"
+  - responseChannel : 12
+  ▿ request : BuildRequestMessagePayload
+    ▿ parameters : BuildParametersMessagePayload
+      - action : "build"
+      ▿ configuration : Optional<String>
+        - some : "Debug"
+      ▿ activeRunDestination : Optional<RunDestinationInfo>
+        ▿ some : RunDestinationInfo
+          - platform : "iphoneos"
+          - sdk : "iphoneos26.2"
+          ▿ sdkVariant : Optional<String>
+            - some : "iphoneos"
+          - targetArchitecture : "undefined_arch"
+          ▿ supportedArchitectures : ["armv4t", "armv5", "armv6", "armv7", "armv7f", "armv7s", "armv7k", "arm64", "arm64e"]
+            ▿ array : 9 elements
+              - 0 : "armv4t"
+              - 1 : "armv5"
+              - 2 : "armv6"
+              - 3 : "armv7"
+              - 4 : "armv7f"
+              - 5 : "armv7s"
+              - 6 : "armv7k"
+              - 7 : "arm64"
+              - 8 : "arm64e"
+            ▿ uniqueIndices : 9 elements
+              ▿ 0 : 2 elements
+                - key : "armv6"
+                - value : 2
+              ▿ 1 : 2 elements
+                - key : "armv7k"
+                - value : 6
+              ▿ 2 : 2 elements
+                - key : "arm64"
+                - value : 7
+              ▿ 3 : 2 elements
+                - key : "armv7s"
+                - value : 5
+              ▿ 4 : 2 elements
+                - key : "armv7"
+                - value : 3
+              ▿ 5 : 2 elements
+                - key : "arm64e"
+                - value : 8
+              ▿ 6 : 2 elements
+                - key : "armv4t"
+                - value : 0
+              ▿ 7 : 2 elements
+                - key : "armv5"
+                - value : 1
+              ▿ 8 : 2 elements
+                - key : "armv7f"
+                - value : 4
+          - disableOnlyActiveArch : true
+          - hostTargetedPlatform : nil
+      ▿ activeArchitecture : Optional<String>
+        - some : "undefined_arch"
+      ▿ arenaInfo : Optional<ArenaInfo>
+        ▿ some : ArenaInfo
+          ▿ derivedDataPath : Path
+            - _str : "/Users/ward/Library/Developer/Xcode/DerivedData"
+          ▿ buildProductsPath : Path
+            - _str : "/Users/ward/Library/Developer/Xcode/DerivedData/Routertje-hgqtmykyujnjhmdfntxdandzmnfj/Build/Products"
+          ▿ buildIntermediatesPath : Path
+            - _str : "/Users/ward/Library/Developer/Xcode/DerivedData/Routertje-hgqtmykyujnjhmdfntxdandzmnfj/Build/Intermediates.noindex"
+          ▿ pchPath : Path
+            - _str : "/Users/ward/Library/Developer/Xcode/DerivedData/Routertje-hgqtmykyujnjhmdfntxdandzmnfj/Build/Intermediates.noindex/PrecompiledHeaders"
+          - indexRegularBuildProductsPath : nil
+          - indexRegularBuildIntermediatesPath : nil
+          ▿ indexPCHPath : Path
+            - _str : "/Users/ward/Library/Developer/Xcode/DerivedData/Routertje-hgqtmykyujnjhmdfntxdandzmnfj/Index.noindex/PrecompiledHeaders"
+          ▿ indexDataStoreFolderPath : Optional<Path>
+            ▿ some : Path
+              - _str : "/Users/ward/Library/Developer/Xcode/DerivedData/Routertje-hgqtmykyujnjhmdfntxdandzmnfj/Index.noindex/DataStore"
+          - indexEnableDataStore : true
+      ▿ overrides : SettingsOverridesMessagePayload
+        ▿ synthesized : 4 elements
+          ▿ 0 : 2 elements
+            - key : "ENABLE_PREVIEWS"
+            - value : "NO"
+          ▿ 1 : 2 elements
+            - key : "ACTION"
+            - value : "build"
+          ▿ 2 : 2 elements
+            - key : "ONLY_ACTIVE_ARCH"
+            - value : "YES"
+          ▿ 3 : 2 elements
+            - key : "ENABLE_XOJIT_PREVIEWS"
+            - value : "YES"
+        - commandLine : 0 elements
+        - commandLineConfigPath : nil
+        - commandLineConfig : 0 elements
+        - environmentConfigPath : nil
+        - environmentConfig : 0 elements
+        - toolchainOverride : nil
+    ▿ configuredTargets : 1 element
+      ▿ 0 : ConfiguredTargetMessagePayload
+        - guid : "320fb9466095fc0f9cd888bb584aebfbd01de5efbdb0778ec2cc312d20ac66e4"
+        - parameters : nil
+    - dependencyScope : SWBProtocol.DependencyScopeMessagePayload.workspace
+    - continueBuildingAfterErrors : true
+    - hideShellScriptEnvironment : false
+    - useParallelTargets : true
+    - useImplicitDependencies : true
+    - useDryRun : false
+    - showNonLoggedProgress : true
+    - recordBuildBacktraces : nil
+    - generatePrecompiledModulesReport : nil
+    - buildPlanDiagnosticsDirPath : nil
+    ▿ buildCommand : BuildCommandMessagePayload
+      ▿ build : 2 elements
+        - style : SWBProtocol.BuildTaskStyleMessagePayload.buildOnly
+        - skipDependencies : false
+    ▿ schemeCommand : Optional<SchemeCommandMessagePayload>
+      - some : SWBProtocol.SchemeCommandMessagePayload.launch
+    ▿ containerPath : Optional<Path>
+      ▿ some : Path
+        - _str : "/Users/ward/Desktop/Routertje/Routertje.xcodeproj"
+    - buildDescriptionID : nil
+    - qos : nil
+    - schedulerLaneWidthOverride : nil
+    ▿ jsonRepresentation : Optional<Data>
+      ▿ some : 2367 bytes
+        - count : 2367
+        ▿ pointer : 0x0000000c20991e00
+          - pointerValue : 52086513152
+  - onlyCreateBuildDescription : false
+  - retainBuildDescription : nil
+
+
+(lldb) po wrapper.message
+▿ BuildStartRequest
+  - sessionHandle : "S0"
+  - id : 0
+
+
+(lldb) po wrapper.message
+▿ ProvisioningTaskInputsResponse
+  - sessionHandle : "S0"
+  - planningOperationHandle : "F28FF3E7-C543-4EF5-A68A-79F5C09DB08E"
+  - configuredTargetHandle : "E6CCDF16-95DE-4A07-96D3-2CE1CE1052CE"
+  ▿ identityHash : Optional<String>
+    - some : "E4CED2C4AB2C320F7CD2ECDCC7F7B62C6384FCF7"
+  ▿ identitySerialNumber : Optional<String>
+    - some : "779D1C575CE75F23613F86AD2BDE53C5"
+  ▿ identityName : Optional<String>
+    - some : "Apple Development: Ward van Teijlingen (WLW75X6E2D)"
+  ▿ profileName : Optional<String>
+    - some : "iOS Team Provisioning Profile: com.example.Routertje"
+  ▿ profileUUID : Optional<String>
+    - some : "372623e8-82af-4760-9360-4afe53202c00"
+  ▿ profilePath : Optional<String>
+    - some : "/Users/ward/Library/Developer/Xcode/UserData/Provisioning Profiles/372623e8-82af-4760-9360-4afe53202c00.mobileprovision"
+  - designatedRequirements : nil
+  ▿ signedEntitlements : Optional<PropertyListItem>
+    ▿ some : PLDict<["application-identifier": "F3X4C7ST2Z.com.example.Routertje", "com.apple.developer.team-identifier": "F3X4C7ST2Z", "get-task-allow": true]>
+      ▿ plDict : 3 elements
+        ▿ 0 : 2 elements
+          - key : "application-identifier"
+          ▿ value : "F3X4C7ST2Z.com.example.Routertje"
+            - plString : "F3X4C7ST2Z.com.example.Routertje"
+        ▿ 1 : 2 elements
+          - key : "com.apple.developer.team-identifier"
+          ▿ value : "F3X4C7ST2Z"
+            - plString : "F3X4C7ST2Z"
+        ▿ 2 : 2 elements
+          - key : "get-task-allow"
+          ▿ value : true
+            - plBool : true
+  - simulatedEntitlements : nil
+  ▿ appIdentifierPrefix : Optional<String>
+    - some : "F3X4C7ST2Z."
+  ▿ teamIdentifierPrefix : Optional<String>
+    - some : "F3X4C7ST2Z."
+  ▿ isEnterpriseTeam : Optional<Bool>
+    - some : false
+  ▿ useSigningTool : Optional<Bool>
+    - some : false
+  - signingToolKeyPath : nil
+  - signingToolKeyID : nil
+  - signingToolKeyIssuerID : nil
+  - keychainPath : nil
+  - errors : 0 elements
+  - warnings : 0 elements
