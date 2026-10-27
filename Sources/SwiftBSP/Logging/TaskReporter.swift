@@ -4,14 +4,14 @@ import LanguageServerProtocol
 import LanguageServerProtocolTransport
 import OSLog
 
-public struct TaskReporter: Sendable {
-    private let connection: (any Connection)?
+struct TaskReporter: Sendable {
+    private let connection: any Connection
 
-    public init(connection: (any Connection)?) {
+    init(connection: any Connection) {
         self.connection = connection
     }
 
-    nonisolated(nonsending) public func log<T>(
+    nonisolated(nonsending) func log<T>(
         message: String,
         parent: TaskId? = nil,
         operation: (TaskId) async throws -> T
@@ -35,7 +35,7 @@ public struct TaskReporter: Sendable {
         }
     }
 
-    public func log<T>(
+    func log<T>(
         message: String,
         parent: TaskId? = nil,
         operation: (TaskId) throws -> T
@@ -51,10 +51,10 @@ public struct TaskReporter: Sendable {
             sendFinish(taskId: id, status: .ok)
             return operationResult
         } catch let error as CancellationError {
-            sendFinish(taskId: id, status: .cancelled)
+            sendFinish(taskId: id, status: .cancelled, message: error.localizedDescription)
             throw error
         } catch {
-            sendFinish(taskId: id, status: .error)
+            sendFinish(taskId: id, status: .error, message: error.localizedDescription)
             throw error
         }
     }
@@ -62,23 +62,15 @@ public struct TaskReporter: Sendable {
     private func sendStart(taskId: TaskId, message: String) {
         let notification = TaskStartNotification(
             taskId: taskId,
-            eventTime: Date(),
             message: "Swift BSP: \(message)",
-            dataKind: nil,
-            data: .dictionary(["workDoneProgressTitle": .string(message)])
+            data: WorkDoneProgressTask(title: message).encodeToLSPAny()
         )
 
-        connection?.send(notification)
+        connection.send(notification)
     }
 
     private func sendFinish(taskId: TaskId, status: StatusCode, message: String? = nil) {
-        let notification = TaskFinishNotification(
-            taskId: taskId,
-            eventTime: Date(),
-            message: message,
-            status: status
-        )
-
-        connection?.send(notification)
+        let notification = TaskFinishNotification(taskId: taskId, message: message, status: status)
+        connection.send(notification)
     }
 }

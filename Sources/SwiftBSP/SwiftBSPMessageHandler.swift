@@ -13,12 +13,12 @@ private enum State {
 }
 
 final actor SwiftBSPMessageHandler: QueueBasedMessageHandler {
-    public let messageHandlingHelper = QueueBasedMessageHandlerHelper(
+    let messageHandlingHelper = QueueBasedMessageHandlerHelper(
         signpostLoggingCategory: "SwiftBSPMessageHandler",
         createLoggingScope: false
     )
 
-    public let messageHandlingQueue = AsyncQueue<BuildServerMessageDependencyTracker>()
+    let messageHandlingQueue = AsyncQueue<BuildServerMessageDependencyTracker>()
 
     private var state = State.waitingForInitializeRequest
     private let onExit: (_ code: Int32) -> Void
@@ -71,9 +71,6 @@ final actor SwiftBSPMessageHandler: QueueBasedMessageHandler {
             case _ as OnBuildExitNotification:
                 onExit(state == .shutdown ? 0 : 1)
             case _ as OnBuildInitializedNotification:
-                Task {
-                    try? await bsp.loadProject()
-                }
                 state = .running
             case let notification as OnWatchedFilesDidChangeNotification:
                 try await handleOnWatchedFilesDidChange(notification: notification)
@@ -92,7 +89,7 @@ final actor SwiftBSPMessageHandler: QueueBasedMessageHandler {
     func handle<Request>(
         request: Request,
         id: RequestID,
-        reply: @escaping @Sendable (Result<Request.Response, any Error>) -> Void
+        reply: @escaping @Sendable (LSPResult<Request.Response>) -> Void
     ) async where Request: RequestType {
         let requestType = "\(request.self)"
         Log.default.debug("[Receive] Request '\(id, privacy: .public)': \(requestType, privacy: .public)")
@@ -172,7 +169,7 @@ extension SwiftBSPMessageHandler {
         }
 
         state = .waitingForInitializedNotification
-        return await bsp.initialize()
+        return try await bsp.initialize()
     }
 
     private func handleBuildShutdown(request: BuildShutdownRequest) async throws -> VoidResponse {
@@ -204,12 +201,10 @@ extension SwiftBSPMessageHandler {
 
     private func handleBuildTargetPrepare(
         request: BuildTargetPrepareRequest
-    ) async throws -> BuildTargetPrepareResponse {
+    ) async throws -> VoidResponse {
         guard state == .running else { throw BuildServerError.projectNotInitialized }
-
         try await bsp.prepareTargets(targetIdentifiers: request.targets)
-
-        return BuildTargetPrepareResponse()
+        return VoidResponse()
     }
 
     private func handleTextDocumentSourceKitOptions(

@@ -5,7 +5,6 @@ import SwiftBuild
 struct EventReporter {
     let taskReporter: TaskReporter
     let logReporter: LogReporter
-    private let log = Log.buildSystem
 
     func log(events: AsyncStream<SwiftBuildMessage>) {
         Task {

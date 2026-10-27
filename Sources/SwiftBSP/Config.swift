@@ -1,16 +1,16 @@
 import Foundation
 import System
 
-public struct Configuration: Decodable, Sendable {
-    public let configFilePath: FilePath
-    public let verboseLogging: Bool
-    public let xcodeProjectPath: FilePath
-    public let workspacePath: FilePath
-    public var scratchPath: FilePath
-    public let configuration: String?
-    public let runDestination: RunDestination?
+struct Configuration: Decodable, Sendable {
+    let configFilePath: FilePath
+    let verboseLogging: Bool
+    let xcodeProjectPath: FilePath
+    let workspacePath: FilePath
+    var scratchPath: FilePath
+    let configuration: String?
+    let runDestination: RunDestination?
 
-    public init(
+    init(
         configFilePath: FilePath,
         verboseLogging: Bool,
         xcodeProjectPath: FilePath,
@@ -30,16 +30,16 @@ public struct Configuration: Decodable, Sendable {
 }
 
 extension Configuration {
-    public struct UserDefined: Decodable, Sendable {
-        public let verboseLogging: Bool?
-        public let project: String?
-        public let configuration: String?
-        public let runDestination: RunDestination?
-        public let scratchPath: String?
+    struct UserDefined: Decodable, Sendable {
+        let verboseLogging: Bool?
+        let project: String?
+        let configuration: String?
+        let runDestination: RunDestination?
+        let scratchPath: String?
     }
 
-    public struct RunDestination: Decodable, Sendable {
-        public let platform: String?
-        public let sdk: String
+    struct RunDestination: Decodable, Sendable {
+        let platform: String?
+        let sdk: String
     }
 }

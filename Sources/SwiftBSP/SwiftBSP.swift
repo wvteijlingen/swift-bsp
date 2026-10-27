@@ -122,7 +122,9 @@ actor SwiftBSP {
     }
 
     // InitializeBuildRequest
-    func initialize() -> InitializeBuildResponse {
+    func initialize() async throws -> InitializeBuildResponse {
+        try await loadProject()
+
         let languageIds = [Language.swift, .c, .cpp, .objective_c, .objective_cpp]
 
         return InitializeBuildResponse(
@@ -391,7 +393,7 @@ extension SwiftBSP {
         let workspaceInfo = try await buildServiceSession.workspaceInfo()
 
         for target in workspaceInfo.targetInfos {
-            if target.guid.starts(with: "PACKAGE-") { continue }
+            // if target.guid.starts(with: "PACKAGE-") { continue }
 
             Log.default.info(
                 "Adding target to build request: \(target.targetName, privacy: .public) (\(target.guid, privacy: .public))"

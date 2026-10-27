@@ -1,20 +1,20 @@
 import Foundation
 import LanguageServerProtocol
 
-public struct LogReporter: Sendable {
-    private let connection: (any Connection)?
+struct LogReporter: Sendable {
+    private let connection: any Connection
 
-    public init(connection: (any Connection)?) {
+    init(connection: any Connection) {
         self.connection = connection
     }
 
-    public func log(message: String, type: WindowMessageType = .log) {
+    func log(message: String, type: WindowMessageType = .log) {
         let notification = LogMessageNotification(type: type, message: message, logName: "swift-bsp")
-        connection?.send(notification)
+        connection.send(notification)
     }
 
-    public func show(message: String, type: WindowMessageType = .log) {
+    func show(message: String, type: WindowMessageType = .log) {
         let notification = ShowMessageNotification(type: type, message: message)
-        connection?.send(notification)
+        connection.send(notification)
     }
 }
